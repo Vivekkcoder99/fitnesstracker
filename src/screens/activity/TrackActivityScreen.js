@@ -533,6 +533,8 @@ const TrackActivityScreen = () => {
       if (!locationSubscriptionRef.current) {
         await startLocationWatch();
       }
+      
+      setMessage("Activity resumed.");
     } catch (err) {
       setError(err.message || "Unable to resume activity tracking.");
     }
