@@ -14,7 +14,7 @@ const MIN_DISTANCE_METERS = 1.5;
 const MIN_REQUIRED_ACCURACY_METERS = 40;
 const MAX_STEP_CADENCE_INTERVAL_MS = 2000;
 const MIN_STEP_CADENCE_INTERVAL_MS = 250;
-const AUTO_PAUSE_IDLE_MS = 20000;
+const AUTO_PAUSE_IDLE_MS = 3000;
 const STEP_BATCH_SIZE = 25;
 const STEP_BATCH_INTERVAL_MS = 30000;
 const PACE_SMOOTHING_WINDOW = 5;
@@ -128,7 +128,10 @@ const TrackActivityScreen = () => {
   const activeAccumMsRef = useRef(0);
   const resumedAtMsRef = useRef(null);
   const lastValidPointRef = useRef(null);
+  const lastObservedPointRef = useRef(null);
   const lastMovementAtMsRef = useRef(null);
+  const isPausedRef = useRef(false);
+  const pauseReasonRef = useRef(null);
   const autoPauseCountRef = useRef(0);
   const manualPauseCountRef = useRef(0);
   const stepCountRef = useRef(0);
@@ -157,9 +160,9 @@ const TrackActivityScreen = () => {
   };
 
   const pauseTracking = useCallback((reason) => {
-    if (!isTracking || isPaused) return;
+    if (!isTracking || isPausedRef.current) return;
 
-    if (locationSubscriptionRef.current) {
+    if (reason !== "auto" && locationSubscriptionRef.current) {
       locationSubscriptionRef.current.remove();
       locationSubscriptionRef.current = null;
     }
@@ -178,7 +181,38 @@ const TrackActivityScreen = () => {
 
     setIsPaused(true);
     setPauseReason(reason);
-  }, [isPaused, isTracking]);
+    isPausedRef.current = true;
+    pauseReasonRef.current = reason;
+  }, [isTracking]);
+
+  const resumeFromAutoPause = (timestampMs) => {
+    resumedAtMsRef.current = timestampMs;
+    lastMovementAtMsRef.current = timestampMs;
+    setIsPaused(false);
+    setPauseReason(null);
+    setMessage("Resumed automatically.");
+    isPausedRef.current = false;
+    pauseReasonRef.current = null;
+  };
+
+  const isMeaningfulMovement = (previous, nextPoint, timestampMs) => {
+    if (!previous) return false;
+
+    const accuracy = Number(nextPoint.accuracy || 9999);
+    if (accuracy > MIN_REQUIRED_ACCURACY_METERS) return false;
+
+    const previousTimestamp = Number(previous.timestamp || timestampMs - 1000);
+    const deltaTimeSeconds = Math.max(0.001, (timestampMs - previousTimestamp) / 1000);
+    const movedMeters = getDistanceInMeters(previous, nextPoint);
+    const speedMps = movedMeters / deltaTimeSeconds;
+    const bounds = getSpeedBoundsByActivityType(activityType);
+
+    return (
+      movedMeters >= MIN_DISTANCE_METERS &&
+      speedMps >= bounds.minActiveMps &&
+      speedMps <= bounds.maxMps
+    );
+  };
 
   const processMovementSample = (nextPoint, timestampMs) => {
     const previous = lastValidPointRef.current;
@@ -254,8 +288,19 @@ const TrackActivityScreen = () => {
         timestamp: timestampMs,
       };
 
-      const result = processMovementSample(pointWithTimestamp, timestampMs);
+      const previousObservedPoint = lastObservedPointRef.current;
+      lastObservedPointRef.current = pointWithTimestamp;
       setCurrentLocation(nextPoint);
+
+      if (isPausedRef.current && pauseReasonRef.current === "auto") {
+        if (isMeaningfulMovement(previousObservedPoint, pointWithTimestamp, timestampMs)) {
+          lastValidPointRef.current = pointWithTimestamp;
+          resumeFromAutoPause(timestampMs);
+        }
+        return;
+      }
+
+      const result = processMovementSample(pointWithTimestamp, timestampMs);
 
       if (!result.accepted) {
         return;
@@ -294,6 +339,8 @@ const TrackActivityScreen = () => {
     setIsTracking(false);
     setIsPaused(false);
     setPauseReason(null);
+    isPausedRef.current = false;
+    pauseReasonRef.current = null;
 
     try {
       setIsSaving(true);
@@ -442,7 +489,10 @@ const TrackActivityScreen = () => {
       resumedAtMsRef.current = Date.now();
       activeAccumMsRef.current = 0;
       lastValidPointRef.current = firstPoint;
+      lastObservedPointRef.current = firstPoint;
       lastMovementAtMsRef.current = firstTimestamp;
+      isPausedRef.current = false;
+      pauseReasonRef.current = null;
       autoPauseCountRef.current = 0;
       manualPauseCountRef.current = 0;
       stepCountRef.current = 0;
@@ -471,6 +521,8 @@ const TrackActivityScreen = () => {
       resumedAtMsRef.current = Date.now();
       setIsPaused(false);
       setPauseReason(null);
+      isPausedRef.current = false;
+      pauseReasonRef.current = null;
       await startLocationWatch();
     } catch (err) {
       setError(err.message || "Unable to resume activity tracking.");
