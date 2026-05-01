@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import RouteMap from "./RouteMap";
 
 const ACTIVITY_TYPE_LABELS = {
   walk: "Walk",
@@ -151,28 +151,12 @@ const ActivityDetailScreen = ({ route }) => {
           Route preview
         </Text>
         {routeRegion ? (
-          <View style={{ borderRadius: 8, overflow: "hidden" }}>
-            <MapView
-              style={{ width: "100%", height: 260 }}
-              initialRegion={routeRegion}
-              scrollEnabled
-              zoomEnabled
-              pitchEnabled={false}
-              rotateEnabled={false}
-            >
-              <Polyline
-                coordinates={routeCoordinates}
-                strokeColor="#2563EB"
-                strokeWidth={4}
-              />
-              {startPoint ? (
-                <Marker coordinate={startPoint} title="Start" pinColor="#16A34A" />
-              ) : null}
-              {endPoint ? (
-                <Marker coordinate={endPoint} title="Finish" pinColor="#DC2626" />
-              ) : null}
-            </MapView>
-          </View>
+          <RouteMap
+            routeCoordinates={routeCoordinates}
+            routeRegion={routeRegion}
+            startPoint={startPoint}
+            endPoint={endPoint}
+          />
         ) : (
           <Text style={{ color: "#475569" }}>
             No route points were saved for this activity.
