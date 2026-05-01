@@ -280,6 +280,10 @@ const TrackActivityScreen = () => {
   };
 
   const startLocationWatch = async () => {
+    if (locationSubscriptionRef.current) {
+      return;
+    }
+
     const subscription = await watchLocation((location) => {
       const nextPoint = location.coords;
       const timestampMs = Number(location?.timestamp || Date.now());
@@ -518,12 +522,17 @@ const TrackActivityScreen = () => {
   const resumeTracking = async () => {
     try {
       setError("");
-      resumedAtMsRef.current = Date.now();
+      const now = Date.now();
+      resumedAtMsRef.current = now;
+      lastMovementAtMsRef.current = now;
       setIsPaused(false);
       setPauseReason(null);
       isPausedRef.current = false;
       pauseReasonRef.current = null;
-      await startLocationWatch();
+
+      if (!locationSubscriptionRef.current) {
+        await startLocationWatch();
+      }
     } catch (err) {
       setError(err.message || "Unable to resume activity tracking.");
     }
