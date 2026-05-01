@@ -17,6 +17,10 @@ const ensureDbReady = () => {
 const toMillis = (value) => {
   if (!value) return null;
   if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
   if (typeof value.toMillis === "function") return value.toMillis();
   return null;
 };

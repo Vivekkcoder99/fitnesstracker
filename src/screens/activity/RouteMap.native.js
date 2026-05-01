@@ -1,11 +1,12 @@
 import React from "react";
 import { View } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 
 const RouteMap = ({ routeCoordinates, routeRegion, startPoint, endPoint }) => (
   <View style={{ borderRadius: 8, overflow: "hidden" }}>
     <MapView
       style={{ width: "100%", height: 260 }}
+      provider={PROVIDER_GOOGLE}
       initialRegion={routeRegion}
       scrollEnabled
       zoomEnabled

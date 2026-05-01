@@ -48,3 +48,24 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Deploy to Vercel
+
+1. Push this repo to GitHub.
+2. Import the repo in Vercel.
+3. Use `npm run vercel-build` as the build command.
+4. Set the output directory to `dist`.
+5. Add these environment variables in the Vercel project settings:
+
+   - `EXPO_PUBLIC_FIREBASE_API_KEY`
+   - `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
+   - `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
+   - `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
+   - `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+   - `EXPO_PUBLIC_FIREBASE_APP_ID`
+   - `GOOGLE_MAPS_IOS_API_KEY`
+   - `GOOGLE_MAPS_ANDROID_API_KEY`
+
+6. Redeploy and share the HTTPS URL with friends.
+
+On iPhone, open the URL in Safari and use the Share menu to add it to the Home Screen.

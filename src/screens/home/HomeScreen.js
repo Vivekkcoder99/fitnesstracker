@@ -1,8 +1,9 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Button,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -66,7 +67,52 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [error, setError] = useState("");
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIosDevice, setIsIosDevice] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      return;
+    }
+
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator?.standalone;
+    const userAgent = window.navigator?.userAgent || "";
+
+    setIsStandalone(Boolean(standalone));
+    setIsIosDevice(/iPad|iPhone|iPod/.test(userAgent));
+
+    if (standalone) {
+      return undefined;
+    }
+
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredInstallPrompt(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  const shouldShowIosInstallHint =
+    Platform.OS === "web" && !isStandalone && !deferredInstallPrompt && isIosDevice;
 
   const loadActivities = useCallback(async ({ refreshing = false } = {}) => {
     const userId = auth?.currentUser?.uid;
@@ -150,6 +196,21 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const handleInstallApp = async () => {
+    if (!deferredInstallPrompt) {
+      return;
+    }
+
+    try {
+      setIsInstalling(true);
+      await deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      setDeferredInstallPrompt(null);
+    } finally {
+      setIsInstalling(false);
+    }
+  };
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: "#F8FAFC" }}
@@ -169,6 +230,53 @@ const HomeScreen = ({ navigation }) => {
           Track your workouts and review your recent activity.
         </Text>
       </View>
+
+      {Platform.OS === "web" && deferredInstallPrompt ? (
+        <View
+          style={{
+            backgroundColor: "#FFFFFF",
+            borderRadius: 8,
+            padding: 16,
+            gap: 10,
+            borderWidth: 1,
+            borderColor: "#E2E8F0",
+          }}
+        >
+          <Text style={{ fontSize: 18, fontWeight: "700", color: "#0F172A" }}>
+            Install app
+          </Text>
+          <Text style={{ color: "#475569" }}>
+            Add Fitness Tracker to your home screen for a full-screen, app-like
+            experience.
+          </Text>
+          <Button
+            title={isInstalling ? "Preparing..." : "Install"}
+            onPress={handleInstallApp}
+            disabled={isInstalling}
+          />
+        </View>
+      ) : null}
+
+      {shouldShowIosInstallHint ? (
+        <View
+          style={{
+            backgroundColor: "#FFFFFF",
+            borderRadius: 8,
+            padding: 16,
+            gap: 8,
+            borderWidth: 1,
+            borderColor: "#E2E8F0",
+          }}
+        >
+          <Text style={{ fontSize: 18, fontWeight: "700", color: "#0F172A" }}>
+            Add to Home Screen
+          </Text>
+          <Text style={{ color: "#475569" }}>
+            On iPhone, tap the Share button in Safari and choose Add to Home
+            Screen for the full app experience.
+          </Text>
+        </View>
+      ) : null}
 
       <View
         style={{
