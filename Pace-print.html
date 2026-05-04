@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <style data-omelette-injected>
+    html,
+    body {
+      background: transparent
+    }
+  </style>
+  <script data-omelette-injected>(() => { var j = ["https://claude.ai", "https://preview.claude.ai", "https://eap-omelette.claude.ai"]; var x = true; var S = 30000; var f = 3000; document.addEventListener("DOMContentLoaded", () => { const H = window.Babel; const G = "om-src-id"; if (H && H.registerPlugin && !(H.availablePlugins && H.availablePlugins[G])) { H.registerPlugin(G, ({ types: Y }) => ({ visitor: { JSXOpeningElement(U, Q) { const J = U.node; if (J.name && J.name.type === "JSXMemberExpression") return; for (let V = 0; V < J.attributes.length; V++) { const L = J.attributes[V]; if (L.type === "JSXAttribute" && L.name && L.name.name === "data-om-id") return } const W = Q.file && Q.file.opts && Q.file.opts.filename || "?"; const Z = J.loc && J.loc.start; const z = `jsx:${W}:${J.start ?? 0}:${Z ? Z.line : 0}:${Z ? Z.column + 1 : 0}`; J.attributes.push(Y.jsxAttribute(Y.jsxIdentifier("data-om-id"), Y.stringLiteral(z))) } } })) } const k = "om-text-extract"; let A = false; if (x && H && H.registerPlugin && !(H.availablePlugins && H.availablePlugins[k])) { const Y = window.React; if (Y && Y.useSyncExternalStore && Y.createElement) { A = true; const U = {}; const Q = new Set; let J = 0; window.__omTextO = U; window.__omTextSet = (z) => { for (const V in z) { const L = z[V]; if (L == null) delete U[V]; else U[V] = L } J++; Q.forEach((V) => V()) }; const W = (z) => { Q.add(z); return () => Q.delete(z) }; const Z = () => J; window.__OmT = function z(V) { Y.useSyncExternalStore(W, Z, Z); return Y.createElement("span", { "data-om-text": V.i, className: "__om-t" }, V.i in U ? U[V.i] : V.children) }; H.registerPlugin(k, ({ types: z }) => { const V = { style: 1, script: 1, noscript: 1, textarea: 1, title: 1, option: 1, text: 1, tspan: 1, textPath: 1 }; const L = { placeholder: 1, alt: 1, title: 1, label: 1, "aria-label": 1, "aria-description": 1, "aria-placeholder": 1 }; const _ = ($, C) => z.logicalExpression("??", z.memberExpression(z.logicalExpression("||", z.memberExpression(z.identifier("window"), z.identifier("__omTextO")), z.objectExpression([])), z.stringLiteral($), true), C); const E = ($) => $.file && $.file.opts && $.file.opts.filename || "?"; const B = ($) => $.file && $.file.code || ""; const b = ($, C) => { const X = (F) => F && F.start != null && F.end != null && (F.type === "StringLiteral" || F.type === "TemplateLiteral" && F.expressions.length === 0) ? [F.start, F.end] : null; const N = X(C); if (N) return N; if (C && C.type === "Identifier") { const F = $.scope.getBinding(C.name); if (F && F.constant && F.path.node.type === "VariableDeclarator") { return X(F.path.node.init) } } return null }; const m = ($, C, X) => { const N = $.node; let F = false; const w = (K, q) => { F = true; return z.jsxElement(z.jsxOpeningElement(z.jsxIdentifier("__OmT"), [z.jsxAttribute(z.jsxIdentifier("i"), z.stringLiteral(K))], false), z.jsxClosingElement(z.jsxIdentifier("__OmT")), [q], false) }; const D = N.children.map((K) => { if (K.type === "JSXText") { if (K.start == null || K.end == null) return K; const q = X.slice(K.start, K.end); const M = q.length - q.trimStart().length; const R = q.length - q.trimEnd().length; if (M + R >= q.length) return K; return w(`txt:${C}:${K.start + M}:${K.end - R}`, K) } if (K.type === "JSXExpressionContainer") { const q = b($, K.expression); if (q) return w(`str:${C}:${q[0]}:${q[1]}`, K) } return K }); if (F) N.children = D }; return { visitor: { JSXOpeningElement($, C) { const X = $.node; const N = E(C); const F = {}; for (let w = 0; w < X.attributes.length; w++) { const D = X.attributes[w]; if (D.type !== "JSXAttribute" || !D.name) continue; const K = D.name.name; if (!L[K]) continue; if (!D.value || D.value.type !== "StringLiteral") continue; if (D.value.start == null || D.value.end == null) continue; const q = `txt:${N}:${D.value.start}:${D.value.end}`; F[K] = q; D.value = z.jsxExpressionContainer(_(q, z.stringLiteral(D.value.value))) } if (Object.keys(F).length) { X.attributes.push(z.jsxAttribute(z.jsxIdentifier("data-om-text-attrs"), z.stringLiteral(JSON.stringify(F)))) } }, JSXElement($, C) { const X = $.node.openingElement; const N = X && X.name && X.name.name; if (N === "__OmT") return; if (typeof N === "string" && V[N]) return; m($, E(C), B(C)) }, JSXFragment($, C) { m($, E(C), B(C)) } } } }) } } const u = A ? ["transform-react-jsx-source", G, k] : ["transform-react-jsx-source", G]; document.querySelectorAll('script[type="text/babel"],script[type="text/jsx"]').forEach((Y, U) => { const Q = Y.getAttribute("data-plugins") || ""; const J = u.filter((W) => Q.indexOf(W) < 0); if (J.length) { Y.setAttribute("data-plugins", Q ? `${Q},${J.join(",")}` : J.join(",")) } if (!Y.hasAttribute("data-filename")) { Y.setAttribute("data-filename", Y.getAttribute("src") || `inline-${U}`) } }) }); var y = window.parent; if (y && y !== window) { const H = (Q, J) => { try { y.postMessage({ __omelette_log: true, type: Q, data: J }, "*") } catch { } };["log", "warn", "error"].forEach((Q) => { const J = console[Q]; console[Q] = (...W) => { const Z = W.map((z) => { try { return typeof z === "object" ? JSON.stringify(z) : String(z) } catch { try { return String(z) } catch { return "[unstringifiable]" } } }).join(" "); H(Q, Z); J.apply(console, W) } }); window.addEventListener("error", (Q) => { const J = Q.target; if (J && J !== window && J.tagName) { const W = J.src || J.href || ""; H("resource_error", `${J.tagName} failed to load: ${W}`) } else { H("error", `${Q.message || "Unknown error"} at ${Q.filename || "?"}:${Q.lineno || 0}:${Q.colno || 0}`) } }, true); window.addEventListener("unhandledrejection", (Q) => { const J = Q.reason; const W = J instanceof Error ? `${J.message} ${J.stack}` : String(J); H("error", `Unhandled rejection: ${W}`) }); const G = () => { try { y.postMessage({ type: "omelette:height", height: document.documentElement.scrollHeight }, "*") } catch { } }; if (document.readyState === "complete") G(); else window.addEventListener("load", G); if (window.ResizeObserver) new ResizeObserver(G).observe(document.documentElement); const k = {}; let A = 0; window.claude = { complete(Q) { return new Promise((J, W) => { if (!j.length) { W(new Error("claude.complete: no parent origin")); return } const Z = `c${++A}`; const z = () => setTimeout(() => { delete k[Z]; W(new Error(`claude.complete: no data for ${S / 1000}s`)) }, S); const V = z(); k[Z] = { resolve: J, reject: W, text: "", t: V, arm: z }; try { for (const L of j) { y.postMessage({ __om_api: true, id: Z, body: Q }, L) } } catch (L) { clearTimeout(V); delete k[Z]; W(L) } }) } }; const u = {}; let Y = 0; window.omelette = { writeFile: (Q, J) => new Promise((W, Z) => { if (!j.length) { W(); return } const z = `f${++Y}`; const V = setTimeout(() => { delete u[z]; W() }, f); u[z] = { resolve: W, reject: Z, t: V }; try { for (const L of j) { y.postMessage({ __om_file: true, id: z, op: "write", path: Q, content: J }, L) } } catch { clearTimeout(V); delete u[z]; W() } }) }; const U = (Q) => { try { return JSON.stringify(Q) } catch { return JSON.stringify(String(Q)) } }; window.addEventListener("message", (Q) => { if (j.indexOf(Q.origin) < 0) return; if (Q.source !== y) return; const J = Q.data; if (!J) return; if (J.__om_file_r) { const z = u[J.id]; if (!z) return; clearTimeout(z.t); delete u[J.id]; if (J.ok) z.resolve(); else z.reject(new Error(J.error || "write failed")); return } if (J.__om_api_r) { const z = k[J.id]; if (!z) return; if (J.error != null) { clearTimeout(z.t); delete k[J.id]; z.reject(new Error(J.error)); return } if (J.chunk != null) { clearTimeout(z.t); z.t = z.arm(); z.text += J.chunk; return } if (J.done) { clearTimeout(z.t); delete k[J.id]; z.resolve(J.text != null ? J.text : z.text); return } return } if (!J.__om_eval) return; const W = J; const Z = (z) => { Q.source.postMessage({ ...z, __om_eval_r: 1, id: W.id }, Q.origin) }; try { const z = (0, eval)(W.code); if (z && typeof z.then === "function") { z.then((V) => Z({ ok: 1, v: U(V) }), (V) => Z({ ok: 0, e: String(V) })) } else { Z({ ok: 1, v: U(z) }) } } catch (z) { Z({ ok: 0, e: String(z) }) } }) } })();
+  </script>
+
+  <meta charset="utf-8" />
+  <title>Pace · Print</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #0c0d11;
+      font-family: 'Inter Tight', system-ui, sans-serif;
+      color: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    button {
+      font-family: inherit;
+    }
+
+    ::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    .page {
+      width: 100%;
+      min-height: 100vh;
+      padding: 40px 60px;
+      display: flex;
+      flex-direction: column;
+      break-after: page;
+      page-break-after: always;
+    }
+
+    .page:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 28px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .page-head .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+    }
+
+    .page-head .title {
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+
+    .page-head .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: oklch(0.88 0.18 130);
+      letter-spacing: 0.1em;
+    }
+
+    .page-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 60px;
+    }
+
+    .frame-wrap {
+      flex-shrink: 0;
+      break-inside: avoid;
+    }
+
+    .notes {
+      flex: 1;
+      max-width: 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .notes h3 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      margin: 0 0 6px;
+      font-weight: 500;
+    }
+
+    .notes p {
+      font-size: 14px;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.82);
+      margin: 0;
+      text-wrap: pretty;
+    }
+
+    .notes ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .notes li {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.7);
+      padding-left: 14px;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    .notes li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 7px;
+      width: 5px;
+      height: 1px;
+      background: oklch(0.88 0.18 130);
+    }
+
+    .cover {
+      justify-content: center;
+      align-items: flex-start;
+      padding: 80px 60px;
+    }
+
+    .cover .brand {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.24em;
+      color: oklch(0.88 0.18 130);
+      text-transform: uppercase;
+    }
+
+    .cover .name {
+      font-size: 120px;
+      font-weight: 500;
+      letter-spacing: -0.05em;
+      line-height: 0.95;
+      margin: 24px 0 16px;
+    }
+
+    .cover .tag {
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      color: rgba(255, 255, 255, 0.7);
+      max-width: 600px;
+    }
+
+    .cover-meta {
+      margin-top: auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 30px;
+      padding-top: 36px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      width: 100%;
+    }
+
+    .cover-meta .k {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      color: rgba(255, 255, 255, 0.45);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .cover-meta .v {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+
+    @media print {
+
+      html,
+      body {
+        background: #0c0d11;
+      }
+
+      .page {
+        min-height: auto;
+        height: 100vh;
+      }
+    }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"
+    integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L"
+    crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"
+    integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm"
+    crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"
+    integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y"
+    crossorigin="anonymous"></script>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="screens.jsx"></script>
+
+  <script type="text/babel">
+    function Frame({ children }) {
+      return (
+        <IOSDevice width={390} height={844} dark>
+          {children}
+        </IOSDevice>
+      );
+    }
+
+    const SCREENS = [
+      {
+        num: '01',
+        title: 'Today',
+        label: 'Home dashboard',
+        component: <ScreenHome />,
+        summary: "First impression on launch. Greets the runner, shows weekly progress at a glance, surfaces today's planned workout, and gives one-tap access to recent runs.",
+        bullets: [
+          "Weekly distance ring · 27.4 / 40 km · 68% to goal",
+          "Bar strip shows pace cadence across 7 days",
+          "Today's run card uses lime accent rail to draw the eye",
+          "Recent runs list with inline pace sparklines",
+        ],
+      },
+      {
+        num: '02',
+        title: 'Pre-run',
+        label: 'Run setup',
+        component: <ScreenSetup />,
+        summary: "Configure the run before stepping out. Workout type, distance, target pace zone, and quick toggles are all reachable without scrolling — primary CTA is GPS-aware.",
+        bullets: [
+          "Four workout types: Easy · Tempo · Long · Free",
+          "Distance with quick chips (5 / 8 / 10 / 15 km) plus slider",
+          "5-zone pace gradient with target indicator",
+          "Auto-pause and voice-coach toggles",
+        ],
+      },
+      {
+        num: '03',
+        title: 'Active run',
+        label: 'Live session',
+        component: <ScreenActive />,
+        summary: "The hero screen of the app. Map sits up top with a pulsing GPS ping; bottom sheet pins the metrics that matter — distance, time, pace, heart rate — at glanceable scale.",
+        bullets: [
+          "76px tabular numerals for distance — readable mid-stride",
+          "Pace shown in lime when in target zone",
+          "Center pause button with ring halo, large hit target",
+          "GPS · 4 SAT · ±3M signal status",
+        ],
+      },
+      {
+        num: '04',
+        title: 'Paused',
+        label: 'Splits review',
+        component: <ScreenPause />,
+        summary: "When the runner pauses, splits become the focus. Each km is judged against target pace; the fastest split highlights in lime. Resume is one large green tap away.",
+        bullets: [
+          "Split table: km · bar · pace ± delta · HR",
+          "Best split highlighted (lime row + accent bar)",
+          "Pause state communicated with orange chip",
+          "End run / Resume side-by-side, primary in lime",
+        ],
+      },
+      {
+        num: '05',
+        title: 'Summary',
+        label: 'Post-run',
+        component: <ScreenSummary />,
+        summary: "Post-run debrief. Hero stats up top, then a layered pace + HR chart over 8 km, and a celebration card for any personal record set.",
+        bullets: [
+          "2×2 hero grid: time, pace, avg HR, energy",
+          "Overlaid pace (lime, fill) and HR (orange, line)",
+          "PR card with star badge, delta vs previous best",
+          "Map-led variant available via Tweaks",
+        ],
+      },
+      {
+        num: '06',
+        title: 'History',
+        label: 'Calendar',
+        component: <ScreenHistory />,
+        summary: "Long-form view across the month. Heatmap calendar reads at a glance — denser lime cells = bigger run days. Recent runs list below for quick navigation.",
+        bullets: [
+          "Month totals: distance · runs · hours",
+          "5×7 calendar heatmap (lime, opacity-mapped)",
+          "Today ring on current cell",
+          "Recent runs with workout-type accent rail",
+        ],
+      },
+      {
+        num: '07',
+        title: 'Trends',
+        label: 'Statistics',
+        component: <ScreenStats />,
+        summary: "Aggregated stats over time. Tabs across distance / pace / HR / load. Default view shows weekly distance bars trending up, time-in-zones distribution, and PR cards.",
+        bullets: [
+          "Segmented tabs: Distance · Pace · HR · Load",
+          "7-week bar chart with current week highlighted",
+          "Time-in-zones bar (Recovery → VO2)",
+          "PR grid: 5K · 10K · VO2 max · resting HR",
+        ],
+      },
+    ];
+
+    function CoverPage() {
+      return (
+        <div className="page cover" style={{ flexDirection: 'column' }}>
+          <div className="brand">● Pace · Running Tracker</div>
+          <div className="name">Pace.</div>
+          <div className="tag">A premium dark-mode running tracker. Seven screens, one polished direction — built around big tabular numerals and a single electric-lime accent.</div>
+
+          <div className="cover-meta">
+            <div>
+              <div className="k">Platform</div>
+              <div className="v">iOS · 390 × 844</div>
+            </div>
+            <div>
+              <div className="k">Aesthetic</div>
+              <div className="v">Dark, data-dense</div>
+            </div>
+            <div>
+              <div className="k">Type</div>
+              <div className="v">Inter Tight · JetBrains Mono</div>
+            </div>
+            <div>
+              <div className="k">Screens</div>
+              <div className="v">07</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function ScreenPage({ s, idx }) {
+      return (
+        <div className="page">
+          <div className="page-head">
+            <div>
+              <div className="label">Screen {s.num} · {s.label}</div>
+              <div className="title" style={{ marginTop: 4 }}>{s.title}</div>
+            </div>
+            <div className="num">{s.num} / 07</div>
+          </div>
+          <div className="page-body">
+            <div className="frame-wrap">
+              <Frame>{s.component}</Frame>
+            </div>
+            <div className="notes">
+              <div>
+                <h3>Overview</h3>
+                <p>{s.summary}</p>
+              </div>
+              <div>
+                <h3>Key elements</h3>
+                <ul>
+                  {s.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      return (
+        <>
+          <CoverPage />
+          {SCREENS.map((s, i) => <ScreenPage key={s.num} s={s} idx={i} />)}
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+    // Auto-print after fonts + babel render settle
+    (async () => {
+      try { await document.fonts.ready; } catch (e) { }
+      // Wait for React to mount
+      await new Promise(r => setTimeout(r, 800));
+      window.print();
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,5 +1,6 @@
 import React from "react";
 import { Text, View } from "react-native";
+import { theme } from "../../theme";
 
 const formatCoordinate = (point) =>
   `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`;
@@ -8,25 +9,26 @@ const RouteMap = ({ routeCoordinates, startPoint, endPoint }) => (
   <View
     style={{
       minHeight: 180,
-      borderRadius: 8,
+      borderRadius: theme.borderRadius.md,
       borderWidth: 1,
-      borderColor: "#CBD5E1",
-      backgroundColor: "#F8FAFC",
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.surface,
       justifyContent: "center",
       gap: 8,
       padding: 16,
+      ...theme.shadows.card,
     }}
   >
-    <Text style={{ color: "#0F172A", fontWeight: "700" }}>
+    <Text style={{ color: theme.colors.primary, fontWeight: "700" }}>
       Route captured with {routeCoordinates.length} GPS points
     </Text>
     {startPoint ? (
-      <Text style={{ color: "#475569" }}>Start: {formatCoordinate(startPoint)}</Text>
+      <Text style={{ color: theme.colors.text.secondary }}>Start: {formatCoordinate(startPoint)}</Text>
     ) : null}
     {endPoint ? (
-      <Text style={{ color: "#475569" }}>Finish: {formatCoordinate(endPoint)}</Text>
+      <Text style={{ color: theme.colors.text.secondary }}>Finish: {formatCoordinate(endPoint)}</Text>
     ) : null}
-    <Text style={{ color: "#64748B" }}>
+    <Text style={{ color: theme.colors.text.tertiary, marginTop: 8 }}>
       Interactive route maps are available in the mobile app.
     </Text>
   </View>

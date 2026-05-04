@@ -1,23 +1,22 @@
 import React, { useEffect, useState } from "react";
 import {
   Alert,
-  Button,
   ScrollView,
   Text,
   TextInput,
   View,
+  TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet
 } from "react-native";
 import { auth } from "../../config/firebase";
 import { getUserProfile, saveUserProfile } from "../../services/profileService";
-
-const inputStyle = {
-  borderWidth: 1,
-  borderColor: "#CBD5E1",
-  borderRadius: 8,
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-  backgroundColor: "#FFFFFF",
-};
+import { theme } from "../../theme";
+import { Ionicons } from "@expo/vector-icons";
+import PrimaryButton from "../../components/PrimaryButton";
+import AvatarSelector from "../../components/AvatarSelector";
 
 const PROFILE_LIMITS = {
   age: { min: 10, max: 100 },
@@ -39,6 +38,7 @@ const ProfileScreen = () => {
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState("");
   const [goal, setGoal] = useState("");
+  const [avatarId, setAvatarId] = useState("avatar_1");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -56,6 +56,7 @@ const ProfileScreen = () => {
         setWeight(profile.weight === null ? "" : String(profile.weight));
         setHeight(profile.height === null ? "" : String(profile.height));
         setGoal(profile.goal || "");
+        setAvatarId(profile.avatarId || "avatar_1");
       } catch (error) {
         Alert.alert("Profile", error.message || "Failed to load profile.");
       } finally {
@@ -123,6 +124,7 @@ const ProfileScreen = () => {
         weight: parsedWeight,
         height: parsedHeight,
         goal,
+        avatarId,
       });
 
       Alert.alert("Saved", "Profile updated successfully.");
@@ -134,75 +136,180 @@ const ProfileScreen = () => {
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "#F8FAFC" }}
-      contentContainerStyle={{ padding: 16, gap: 14 }}
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
     >
-      <Text style={{ fontSize: 26, fontWeight: "700", color: "#0F172A" }}>
-        Profile
-      </Text>
-      <Text style={{ color: "#475569" }}>
-        Keep your basic fitness details updated for better tracking context.
-      </Text>
+      <ScrollView
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Settings</Text>
+          <Text style={styles.subtitle}>Configure your athlete profile</Text>
+        </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600", color: "#0F172A" }}>Name</Text>
-        <TextInput value={name} onChangeText={setName} style={inputStyle} />
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>CHOOSE YOUR AVATAR</Text>
+          <AvatarSelector selectedAvatarId={avatarId} onSelect={setAvatarId} />
+        </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600", color: "#0F172A" }}>Age</Text>
-        <TextInput
-          value={age}
-          onChangeText={setAge}
-          keyboardType="number-pad"
-          style={inputStyle}
+        <View style={styles.formSection}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Full Name</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput 
+                value={name} 
+                onChangeText={setName} 
+                style={styles.input} 
+                placeholder="e.g. John Doe"
+                placeholderTextColor={theme.colors.text.tertiary}
+              />
+            </View>
+          </View>
+
+          <View style={styles.rowInputs}>
+            <View style={[styles.inputGroup, styles.flex1]}>
+              <Text style={styles.label}>Age</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  value={age}
+                  onChangeText={setAge}
+                  keyboardType="number-pad"
+                  style={[styles.input, styles.monoInput]}
+                  placeholder="Yrs"
+                  placeholderTextColor={theme.colors.text.tertiary}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.inputGroup, styles.flex1]}>
+              <Text style={styles.label}>Weight</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  value={weight}
+                  onChangeText={setWeight}
+                  keyboardType="decimal-pad"
+                  style={[styles.input, styles.monoInput]}
+                  placeholder="kg"
+                  placeholderTextColor={theme.colors.text.tertiary}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.inputGroup, styles.flex1]}>
+              <Text style={styles.label}>Height</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  value={height}
+                  onChangeText={setHeight}
+                  keyboardType="decimal-pad"
+                  style={[styles.input, styles.monoInput]}
+                  placeholder="cm"
+                  placeholderTextColor={theme.colors.text.tertiary}
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Fitness Goal</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                value={goal}
+                onChangeText={setGoal}
+                style={[styles.input, styles.textArea]}
+                multiline
+                placeholder="e.g. Run a 5k next month"
+                placeholderTextColor={theme.colors.text.tertiary}
+              />
+            </View>
+          </View>
+        </View>
+
+        <PrimaryButton 
+          title="Update Profile" 
+          onPress={handleSave} 
+          loading={isSaving}
+          disabled={isLoading} 
+          style={{ marginTop: theme.spacing.lg }}
         />
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600", color: "#0F172A" }}>
-          Weight (kg)
-        </Text>
-        <TextInput
-          value={weight}
-          onChangeText={setWeight}
-          keyboardType="decimal-pad"
-          style={inputStyle}
-        />
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600", color: "#0F172A" }}>
-          Height (cm)
-        </Text>
-        <TextInput
-          value={height}
-          onChangeText={setHeight}
-          keyboardType="decimal-pad"
-          style={inputStyle}
-        />
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600", color: "#0F172A" }}>Goal</Text>
-        <TextInput
-          value={goal}
-          onChangeText={setGoal}
-          style={[inputStyle, { minHeight: 96, textAlignVertical: "top" }]}
-          multiline
-          placeholder="Example: Walk 5 km, 4 days a week."
-          placeholderTextColor="#94A3B8"
-        />
-      </View>
-
-      <Button
-        title={isSaving ? "Saving..." : "Save Profile"}
-        onPress={handleSave}
-        disabled={isSaving || isLoading}
-      />
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  contentContainer: {
+    padding: theme.spacing.lg,
+    paddingTop: theme.spacing.xl,
+    gap: theme.spacing.lg,
+  },
+  header: {
+    alignItems: "flex-start",
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  title: {
+    ...theme.typography.h1,
+    fontSize: 32,
+  },
+  subtitle: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+  },
+  section: {
+    marginVertical: theme.spacing.md,
+  },
+  sectionLabel: {
+    ...theme.typography.caption,
+    marginLeft: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+    color: theme.colors.text.tertiary,
+    letterSpacing: 2,
+  },
+  formSection: {
+    gap: theme.spacing.lg,
+  },
+  rowInputs: {
+    flexDirection: "row",
+    gap: theme.spacing.md,
+  },
+  flex1: {
+    flex: 1,
+  },
+  inputGroup: {
+    gap: theme.spacing.sm,
+  },
+  label: {
+    ...theme.typography.caption,
+    color: theme.colors.text.tertiary,
+    fontSize: 10,
+    letterSpacing: 2,
+  },
+  inputWrapper: {
+    borderBottomWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: 2,
+  },
+  input: {
+    paddingVertical: theme.spacing.md,
+    ...theme.typography.body,
+    color: theme.colors.text.primary,
+  },
+  monoInput: {
+    ...theme.typography.mono,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+});
 
 export default ProfileScreen;

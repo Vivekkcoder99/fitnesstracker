@@ -1,30 +1,28 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import HomeScreen from "../screens/home/HomeScreen";
 import ActivityDetailScreen from "../screens/activity/ActivityDetailScreen";
-import TrackActivityScreen from "../screens/activity/TrackActivityScreen";
-import ProfileScreen from "../screens/profile/ProfileScreen";
+import ActivitySummaryScreen from "../screens/activity/ActivitySummaryScreen";
+import MainBottomTabs from "./MainBottomTabs";
 
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
   return (
     <Stack.Navigator>
-      <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen
-        name="Track"
-        component={TrackActivityScreen}
-        options={{ title: "Track Activity" }}
+        name="MainTabs"
+        component={MainBottomTabs}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="ActivityDetail"
         component={ActivityDetailScreen}
-        options={{ title: "Activity Details" }}
+        options={{ title: "Activity Details", presentation: "modal" }}
       />
       <Stack.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ title: "Profile" }}
+        name="ActivitySummary"
+        component={ActivitySummaryScreen}
+        options={{ headerShown: false, gestureEnabled: false }}
       />
     </Stack.Navigator>
   );

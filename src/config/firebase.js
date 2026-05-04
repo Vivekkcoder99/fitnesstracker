@@ -5,7 +5,7 @@ import {
   initializeAuth,
 } from "firebase/auth";
 import { Platform } from "react-native";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -56,7 +56,13 @@ const initializeFirebaseAuth = (firebaseApp) => {
 
 // Initialize Firebase services used in the app.
 const auth = app ? initializeFirebaseAuth(app) : null;
-const db = app ? getFirestore(app) : null;
+const db = app 
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    }) 
+  : null;
 const storage = app ? getStorage(app) : null;
 
 export { app, auth, db, storage, isFirebaseConfigured };
