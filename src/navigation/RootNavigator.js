@@ -31,11 +31,12 @@ const RootNavigator = () => {
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
+          backgroundColor: "#0C0D11",
           gap: 12,
         }}
       >
-        <ActivityIndicator size="large" />
-        <Text>Checking login status...</Text>
+        <ActivityIndicator size="large" color="#C5F135" />
+        <Text style={{ color: "#5A5D6E", fontSize: 11, letterSpacing: 1 }}>LOADING</Text>
       </View>
     );
   }

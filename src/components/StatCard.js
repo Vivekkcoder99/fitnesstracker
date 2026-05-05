@@ -5,10 +5,12 @@ import { theme } from "../theme";
 const StatCard = ({ label, value, unit, highlight = false, style }) => {
   return (
     <View style={[styles.card, style]}>
-      <Text style={[styles.value, highlight && styles.highlightValue]}>{value}</Text>
-      <View style={styles.labelContainer}>
-        <Text style={styles.label}>{label}</Text>
-        {unit && <Text style={styles.unit}>{unit}</Text>}
+      <Text style={styles.label}>{(label || "").toUpperCase()}</Text>
+      <View style={styles.valRow}>
+        <Text style={[styles.value, highlight && styles.highlightValue]}>
+          {value}
+        </Text>
+        {unit ? <Text style={styles.unit}>{unit}</Text> : null}
       </View>
     </View>
   );
@@ -16,35 +18,43 @@ const StatCard = ({ label, value, unit, highlight = false, style }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    ...theme.shadows.card,
     flex: 1,
+    backgroundColor: theme.colors.surfaceHighlight,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     justifyContent: "center",
     alignItems: "center",
+    gap: 4,
+  },
+  label: {
+    fontSize: 8,
+    color: theme.colors.text.tertiary,
+    fontWeight: "600",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  valRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 3,
   },
   value: {
-    ...theme.typography.mono,
-    fontSize: 28,
-    fontWeight: "600",
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 20,
+    fontWeight: "700",
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs,
   },
   highlightValue: {
     color: theme.colors.primary,
   },
-  labelContainer: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
-  },
-  label: {
-    ...theme.typography.caption,
-  },
   unit: {
-    ...theme.typography.caption,
-    textTransform: "lowercase",
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 10,
+    color: theme.colors.text.tertiary,
+    fontWeight: "500",
   },
 });
 

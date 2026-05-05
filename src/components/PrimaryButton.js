@@ -1,5 +1,5 @@
 import React from "react";
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator as RNActivityIndicator } from "react-native";
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator as RNActivityIndicator, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 
@@ -9,16 +9,17 @@ const PrimaryButton = ({ title, onPress, icon, disabled, loading, style }) => {
       style={[styles.button, disabled && styles.disabled, style]}
       onPress={onPress}
       disabled={disabled || loading}
+      activeOpacity={0.85}
     >
       {loading ? (
         <RNActivityIndicator size="small" color={theme.colors.text.inverse} />
       ) : (
-        <>
+        <View style={styles.inner}>
           {icon && (
             <Ionicons name={icon} size={18} color={theme.colors.text.inverse} style={styles.icon} />
           )}
           <Text style={styles.text}>{title}</Text>
-        </>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -27,26 +28,28 @@ const PrimaryButton = ({ title, onPress, icon, disabled, loading, style }) => {
 const styles = StyleSheet.create({
   button: {
     backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.full,
-    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: 15,
     paddingHorizontal: theme.spacing.md,
-    flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    alignSelf: "center",
+    justifyContent: "center",
+    width: "100%",
+    ...theme.shadows.button,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
-  icon: {
-    marginRight: theme.spacing.sm,
+  inner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
+  icon: {},
   text: {
     color: theme.colors.text.inverse,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 0.2,
   },
 });
 

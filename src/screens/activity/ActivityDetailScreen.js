@@ -10,6 +10,10 @@ const ACTIVITY_TYPE_LABELS = {
   walk: "Walk",
   run: "Run",
   cycle: "Cycle",
+  easy: "Easy Run",
+  tempo: "Tempo Run",
+  long: "Long Run",
+  free: "Free Run",
 };
 
 const getActivityIcon = (activityType) => {
@@ -21,8 +25,12 @@ const getActivityIcon = (activityType) => {
   }
 };
 
-const getActivityTypeLabel = (activityType) =>
-  ACTIVITY_TYPE_LABELS[activityType] || "Activity";
+const getActivityTypeLabel = (activityType, workoutType) => {
+  if (workoutType && ACTIVITY_TYPE_LABELS[workoutType]) {
+    return ACTIVITY_TYPE_LABELS[workoutType];
+  }
+  return ACTIVITY_TYPE_LABELS[activityType] || "Activity";
+};
 
 const formatDistance = (meters = 0) => `${(meters / 1000).toFixed(2)} km`;
 
@@ -135,7 +143,7 @@ const ActivityDetailScreen = ({ route }) => {
       <View style={styles.contentContainer}>
         <View style={styles.header}>
           <Text style={styles.brandText}>● PACE SESSION</Text>
-          <Text style={styles.title}>{getActivityTypeLabel(activity.activityType)}</Text>
+          <Text style={styles.title}>{getActivityTypeLabel(activity.activityType, activity.workoutType)}</Text>
           <Text style={styles.dateText}>{formatDateTime(startedAt)}</Text>
         </View>
 

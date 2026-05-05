@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +13,6 @@ import { useFocusEffect } from "@react-navigation/native";
 import { auth } from "../../config/firebase";
 import { getUserActivities } from "../../services/activityService";
 import { theme } from "../../theme";
-import ActivityCard from "../../components/ActivityCard";
 
 /* ─── Helpers ─────────────────────────────────────────────── */
 const formatDate = (ts) =>
@@ -29,6 +29,13 @@ const formatDuration = (s = 0) => {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return m < 1 ? `${sec}s` : `${m}m ${sec}s`;
+};
+
+const formatPace = (paceMinPerKm) => {
+  if (!paceMinPerKm || paceMinPerKm <= 0) return "–:––";
+  const mins = Math.floor(paceMinPerKm);
+  const secs = Math.round((paceMinPerKm - mins) * 60);
+  return `${mins}:${String(secs).padStart(2, "0")}`;
 };
 
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -83,20 +90,30 @@ function CalendarHeatmap({ activities, year, month }) {
         <View key={row} style={cal.row}>
           {cells.slice(row * 7, row * 7 + 7).map((cell, col) => {
             if (!cell) return <View key={col} style={cal.cell} />;
-            const intensity = cell.km > 0 ? Math.max(0.15, cell.km / maxKm) : 0;
             const isToday = cell.key === todayKey;
+            // 3-level intensity per mockup: <5km dim, 5-12km mid, 12km+ full
+            let bgColor = "transparent";
+            let textColor = "rgba(255,255,255,0.3)";
+            if (cell.km >= 12) {
+              bgColor = "#C5F135";
+              textColor = "#0C0D11";
+            } else if (cell.km >= 5) {
+              bgColor = "rgba(197,241,53,0.5)";
+              textColor = "#C5F135";
+            } else if (cell.km > 0) {
+              bgColor = "rgba(197,241,53,0.25)";
+              textColor = "#8BAF22";
+            }
             return (
               <View
                 key={col}
                 style={[
                   cal.cell,
-                  cell.km > 0 && {
-                    backgroundColor: `rgba(208, 255, 0, ${intensity})`,
-                  },
+                  { backgroundColor: bgColor },
                   isToday && cal.cellToday,
                 ]}
               >
-                <Text style={[cal.cellNum, cell.km > 0 && { color: "#fff", opacity: 1 }]}>
+                <Text style={[cal.cellNum, { color: textColor }]}>
                   {cell.d}
                 </Text>
               </View>
@@ -110,37 +127,32 @@ function CalendarHeatmap({ activities, year, month }) {
 
 const cal = StyleSheet.create({
   wrap: { gap: 3 },
-  header: {
-    flexDirection: "row",
-    marginBottom: 2,
-  },
+  header: { flexDirection: "row", marginBottom: 2 },
   dayLabel: {
     flex: 1,
     textAlign: "center",
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.35)",
+    color: "rgba(255,255,255,0.3)",
     letterSpacing: 0.5,
   },
-  row: {
-    flexDirection: "row",
-    gap: 3,
-  },
+  row: { flexDirection: "row", gap: 3 },
   cell: {
     flex: 1,
     aspectRatio: 1,
-    borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.04)",
     justifyContent: "center",
     alignItems: "center",
   },
   cellToday: {
     borderWidth: 1,
-    borderColor: "#D0FF00",
+    borderColor: "#C5F135",
   },
   cellNum: {
     fontSize: 8,
-    color: "rgba(255,255,255,0.3)",
+    fontFamily: theme.typography.mono.fontFamily,
+    fontWeight: "700",
   },
 });
 
@@ -204,13 +216,14 @@ const HistoryScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={() => load({ refreshing: true })} tintColor={theme.colors.primary} />
-      }
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={() => load({ refreshing: true })} tintColor={theme.colors.primary} />
+        }
+      >
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.pageTitle}>History</Text>
@@ -251,41 +264,82 @@ const HistoryScreen = ({ navigation }) => {
         <Text style={styles.sectionLabel}>Activity Heatmap</Text>
         <CalendarHeatmap activities={activities} year={viewYear} month={viewMonth} />
 
-        {/* Legend */}
+        {/* Legend — 3 levels per mockup */}
         <View style={styles.legend}>
-          <Text style={styles.legendText}>Less</Text>
-          {[0.1, 0.3, 0.55, 0.8, 1.0].map((op) => (
-            <View
-              key={op}
-              style={[styles.legendDot, { backgroundColor: `rgba(208, 255, 0, ${op})` }]}
-            />
-          ))}
-          <Text style={styles.legendText}>More</Text>
+          <View style={[styles.legendDot, { backgroundColor: "rgba(197,241,53,0.25)" }]} />
+          <Text style={styles.legendText}>Short (&lt;5km)</Text>
+          <View style={[styles.legendDot, { backgroundColor: "rgba(197,241,53,0.5)" }]} />
+          <Text style={styles.legendText}>Med (5–12)</Text>
+          <View style={[styles.legendDot, { backgroundColor: "#C5F135" }]} />
+          <Text style={styles.legendText}>Long (12+)</Text>
         </View>
       </View>
 
       {/* Recent runs list */}
       <View style={styles.listSection}>
-        <Text style={styles.sectionLabel}>Recent Runs</Text>
+        <Text style={styles.sectionLabel}>
+          {new Date(viewYear, viewMonth).toLocaleString("default", { month: "long" })} Runs
+        </Text>
         {isLoading ? (
           <ActivityIndicator color={theme.colors.primary} style={{ marginTop: 24 }} />
         ) : activities.length === 0 ? (
           <Text style={styles.emptyText}>No activities yet.</Text>
         ) : (
-          activities.slice(0, 20).map((a) => (
-            <ActivityCard
-              key={a.id}
-              activity={a}
-              onPress={() => navigation.navigate("ActivityDetail", { activity: a })}
-              formatDistance={formatDistance}
-              formatDuration={formatDuration}
-              formatDate={formatDate}
-              getActivityTypeLabel={(t) => (t || "Activity").toUpperCase()}
-            />
-          ))
+          activities
+            .filter((a) => {
+              const ts = a.startedAt || a.createdAt;
+              if (!ts) return false;
+              const d = new Date(ts);
+              return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
+            })
+            .slice(0, 20)
+            .map((a) => {
+              const wt = a.workoutType || a.activityType;
+              const dotColor =
+                wt === "tempo" ? theme.colors.secondary
+                : wt === "long" ? theme.colors.accent
+                : theme.colors.primary; // default lime = easy/free/walk/run
+              const ts = a.startedAt || a.createdAt;
+              const timeStr = ts
+                ? new Date(ts).toLocaleString(undefined, {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "";
+              const pace = a.paceMinPerKm ? formatPace(a.paceMinPerKm) : "–";
+              const km = ((a.distanceMeters || 0) / 1000).toFixed(1);
+              const label =
+                wt === "easy"  ? "Easy Run"
+                : wt === "tempo" ? "Tempo Run"
+                : wt === "long"  ? "Long Run"
+                : wt === "free"  ? "Free Run"
+                : wt === "walk"  ? "Walk"
+                : wt === "cycle" ? "Cycle"
+                : "Run";
+              return (
+                <Pressable
+                  key={a.id}
+                  style={({ pressed }) => [histStyles.item, pressed && { opacity: 0.7 }]}
+                  onPress={() => navigation.navigate("ActivityDetail", { activity: a })}
+                >
+                  <View style={[histStyles.dot, { backgroundColor: dotColor }]} />
+                  <View style={histStyles.info}>
+                    <Text style={histStyles.type}>{label}</Text>
+                    <Text style={histStyles.date}>{timeStr}</Text>
+                  </View>
+                  <View style={histStyles.stats}>
+                    <Text style={histStyles.dist}>{km} km</Text>
+                    <Text style={histStyles.pace}>{pace} /km</Text>
+                  </View>
+                </Pressable>
+              );
+            })
         )}
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -370,9 +424,47 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  listSection: { gap: theme.spacing.md },
+  listSection: { gap: 0 },
 
   emptyText: { ...theme.typography.body, color: theme.colors.text.tertiary, textAlign: "center", marginTop: theme.spacing.xl },
+});
+
+const histStyles = StyleSheet.create({
+  item: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    alignItems: "center",
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  info: { flex: 1 },
+  type: { fontSize: 11, fontWeight: "500", color: theme.colors.text.primary },
+  date: {
+    fontSize: 9,
+    color: theme.colors.text.tertiary,
+    fontFamily: theme.typography.mono.fontFamily,
+    marginTop: 2,
+  },
+  stats: { alignItems: "flex-end" },
+  dist: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
+  pace: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 9,
+    color: theme.colors.text.tertiary,
+  },
 });
 
 export default HistoryScreen;

@@ -28,9 +28,10 @@ const MainBottomTabs = () => {
         tabBarStyle: {
           borderTopWidth: 1,
           borderTopColor: theme.colors.border,
-          backgroundColor: theme.colors.background,
+          backgroundColor: theme.colors.surface,
           paddingTop: 8,
-          height: 60,
+          height: 68,
+          paddingBottom: 8,
         },
       }}
     >

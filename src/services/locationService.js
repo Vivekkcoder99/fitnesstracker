@@ -4,6 +4,18 @@ import * as TaskManager from "expo-task-manager";
 
 export const LOCATION_TRACKING_TASK = "BACKGROUND_LOCATION_TRACKING";
 
+// Define the background task to satisfy iOS/Android native runtime requirements and prevent startup crashes
+TaskManager.defineTask(LOCATION_TRACKING_TASK, ({ data, error }) => {
+  if (error) {
+    console.error("Background location error:", error);
+    return;
+  }
+  if (data) {
+    const { locations } = data;
+    console.log("Background location update:", locations);
+  }
+});
+
 export const requestLocationPermission = async () => {
   const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
   if (foregroundStatus !== "granted") return false;

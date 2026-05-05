@@ -8,8 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  ActivityIndicator,
-  Keyboard
+  Keyboard,
 } from "react-native";
 import { login, resetPassword } from "../../services/authService";
 import { theme } from "../../theme";
@@ -58,25 +57,23 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
       <View style={styles.content}>
-        <View style={styles.headerContainer}>
-          <View style={styles.brandBadge}>
-            <View style={styles.brandDot} />
-            <Text style={styles.brandText}>PACE</Text>
-          </View>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
+        {/* ── Brand Hero ───────────────────────────────── */}
+        <View style={styles.heroSection}>
+          <Text style={styles.logoText}>PACE</Text>
+          <Text style={styles.tagline}>Track every step. Own every mile.</Text>
         </View>
 
+        {/* ── Form ─────────────────────────────────────── */}
         <View style={styles.formContainer}>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="mail-outline" size={20} color={theme.colors.text.tertiary} style={styles.inputIcon} />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Email</Text>
             <TextInput
-              placeholder="Email Address"
+              placeholder="vivek@example.com"
               placeholderTextColor={theme.colors.text.tertiary}
               value={email}
               onChangeText={setEmail}
@@ -87,10 +84,10 @@ const LoginScreen = ({ navigation }) => {
             />
           </View>
 
-          <View style={styles.inputWrapper}>
-            <Ionicons name="lock-closed-outline" size={20} color={theme.colors.text.tertiary} style={styles.inputIcon} />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Password</Text>
             <TextInput
-              placeholder="Password"
+              placeholder="••••••••"
               placeholderTextColor={theme.colors.text.tertiary}
               value={password}
               onChangeText={setPassword}
@@ -99,31 +96,41 @@ const LoginScreen = ({ navigation }) => {
             />
           </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <PrimaryButton
-            title="Login"
-            onPress={handleLogin}
-            loading={loading}
-            disabled={resettingPassword}
-            style={styles.loginButton}
-          />
-
           <TouchableOpacity
             onPress={handleResetPassword}
             disabled={loading || resettingPassword}
-            style={styles.forgotPasswordButton}
+            style={styles.forgotBtn}
           >
-            <Text style={styles.forgotPasswordText}>
-              {resettingPassword ? "Sending reset email..." : "Forgot your password?"}
+            <Text style={styles.forgotText}>
+              {resettingPassword ? "Sending reset email..." : "Forgot password?"}
             </Text>
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.footerContainer}>
-          <Text style={styles.footerText}>Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => navigation?.navigate("Signup")}>
-            <Text style={styles.footerLink}>Sign Up</Text>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <PrimaryButton
+            title="Sign In"
+            onPress={handleLogin}
+            loading={loading}
+            disabled={resettingPassword}
+          />
+
+          {/* ── Divider ────────────────────────────────── */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* ── Footer ─────────────────────────────────── */}
+          <TouchableOpacity
+            style={styles.createRow}
+            onPress={() => navigation?.navigate("Signup")}
+          >
+            <Text style={styles.createText}>
+              New to Pace?{" "}
+              <Text style={styles.createLink}>Create account →</Text>
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -139,88 +146,97 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: "center",
-    padding: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.xl,
   },
-  headerContainer: {
-    marginBottom: theme.spacing.xxl,
-  },
-  brandBadge: {
-    flexDirection: "row",
+
+  /* Brand hero */
+  heroSection: {
     alignItems: "center",
-    marginBottom: theme.spacing.xl,
+    marginBottom: theme.spacing.xxl,
     gap: 8,
   },
-  brandDot: {
-    width: 8,
-    height: 8,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-  },
-  brandText: {
-    ...theme.typography.caption,
+  logoText: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 42,
+    fontWeight: "700",
     color: theme.colors.primary,
-    letterSpacing: 3,
+    letterSpacing: 8,
   },
-  title: {
-    ...theme.typography.h1,
-    fontSize: 32,
-    marginBottom: 8,
+  tagline: {
+    fontSize: 12,
+    color: theme.colors.text.tertiary,
+    letterSpacing: 0.5,
   },
-  subtitle: {
-    ...theme.typography.body,
-    color: theme.colors.text.secondary,
-  },
+
+  /* Form */
   formContainer: {
-    gap: theme.spacing.lg,
+    gap: theme.spacing.md,
   },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
+  fieldGroup: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    color: theme.colors.text.tertiary,
+    fontWeight: "600",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  input: {
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.sm,
     paddingHorizontal: theme.spacing.md,
-    height: 56,
-  },
-  inputIcon: {
-    marginRight: theme.spacing.sm,
-  },
-  input: {
-    flex: 1,
-    height: "100%",
-    ...theme.typography.body,
+    paddingVertical: 14,
+    fontSize: 14,
     color: theme.colors.text.primary,
+    fontFamily: theme.typography.mono.fontFamily,
+  },
+  forgotBtn: {
+    alignSelf: "flex-end",
+    paddingVertical: 2,
+  },
+  forgotText: {
+    fontSize: 11,
+    color: theme.colors.text.tertiary,
+    fontWeight: "500",
   },
   errorText: {
     color: theme.colors.danger,
-    ...theme.typography.caption,
+    fontSize: 11,
     textAlign: "center",
-    marginTop: -theme.spacing.sm, // Bring it closer to the fields it refers to
-    marginBottom: theme.spacing.xs,
+    fontWeight: "500",
   },
-  loginButton: {
-    marginTop: theme.spacing.sm,
+
+  /* Divider */
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: theme.spacing.xs,
   },
-  forgotPasswordButton: {
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  dividerText: {
+    fontSize: 11,
+    color: theme.colors.text.tertiary,
+    letterSpacing: 0.5,
+  },
+
+  /* Create account */
+  createRow: {
     alignItems: "center",
     paddingVertical: theme.spacing.sm,
   },
-  forgotPasswordText: {
-    ...theme.typography.caption,
+  createText: {
+    fontSize: 12,
     color: theme.colors.text.tertiary,
   },
-  footerContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: theme.spacing.xxl,
-  },
-  footerText: {
-    ...theme.typography.body,
-    color: theme.colors.text.tertiary,
-  },
-  footerLink: {
-    ...theme.typography.body,
+  createLink: {
     color: theme.colors.primary,
     fontWeight: "600",
   },

@@ -1,4 +1,6 @@
 import {
+  doc,
+  setDoc,
   addDoc,
   collection,
   getDocs,
@@ -37,7 +39,7 @@ const normalizeActivity = (doc) => {
   };
 };
 
-export const saveActivity = async (userId, activityData) => {
+export const saveActivity = async (userId, activityData, activityId = null) => {
   ensureDbReady();
 
   if (!userId) {
@@ -45,12 +47,21 @@ export const saveActivity = async (userId, activityData) => {
   }
 
   const activitiesRef = collection(db, "users", userId, "activities");
-  const docRef = await addDoc(activitiesRef, {
-    ...activityData,
-    createdAt: serverTimestamp(),
-  });
-
-  return docRef.id;
+  
+  if (activityId) {
+    const activityDoc = doc(db, "users", userId, "activities", activityId);
+    await setDoc(activityDoc, {
+      ...activityData,
+      createdAt: serverTimestamp(),
+    }, { merge: true });
+    return activityId;
+  } else {
+    const docRef = await addDoc(activitiesRef, {
+      ...activityData,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+  }
 };
 
 export const getUserActivities = async (userId) => {

@@ -7,12 +7,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  ActivityIndicator,
-  Keyboard
+  Keyboard,
 } from "react-native";
 import { signup } from "../../services/authService";
 import { theme } from "../../theme";
-import { Ionicons } from "@expo/vector-icons";
 import PrimaryButton from "../../components/PrimaryButton";
 
 const SignupScreen = ({ navigation }) => {
@@ -35,25 +33,23 @@ const SignupScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
       <View style={styles.content}>
-        <View style={styles.headerContainer}>
-          <View style={styles.brandBadge}>
-            <View style={styles.brandDot} />
-            <Text style={styles.brandText}>PACE</Text>
-          </View>
-          <Text style={styles.title}>Join Pace</Text>
-          <Text style={styles.subtitle}>Start tracking your progress today</Text>
+        {/* ── Brand Hero ───────────────────────────────── */}
+        <View style={styles.heroSection}>
+          <Text style={styles.logoText}>PACE</Text>
+          <Text style={styles.tagline}>Start tracking your progress today.</Text>
         </View>
 
+        {/* ── Form ─────────────────────────────────────── */}
         <View style={styles.formContainer}>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="mail-outline" size={20} color={theme.colors.text.tertiary} style={styles.inputIcon} />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Email</Text>
             <TextInput
-              placeholder="Email Address"
+              placeholder="you@example.com"
               placeholderTextColor={theme.colors.text.tertiary}
               value={email}
               onChangeText={setEmail}
@@ -64,10 +60,10 @@ const SignupScreen = ({ navigation }) => {
             />
           </View>
 
-          <View style={styles.inputWrapper}>
-            <Ionicons name="lock-closed-outline" size={20} color={theme.colors.text.tertiary} style={styles.inputIcon} />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Password</Text>
             <TextInput
-              placeholder="Password"
+              placeholder="Min 6 characters"
               placeholderTextColor={theme.colors.text.tertiary}
               value={password}
               onChangeText={setPassword}
@@ -79,17 +75,27 @@ const SignupScreen = ({ navigation }) => {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <PrimaryButton
-            title="Sign Up"
+            title="Create Account"
             onPress={handleSignup}
             loading={loading}
-            style={styles.signupButton}
           />
-        </View>
 
-        <View style={styles.footerContainer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigation?.navigate("Login")}>
-            <Text style={styles.footerLink}>Login</Text>
+          {/* ── Divider ────────────────────────────────── */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* ── Footer ─────────────────────────────────── */}
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation?.navigate("Login")}
+          >
+            <Text style={styles.linkText}>
+              Already have an account?{" "}
+              <Text style={styles.linkAccent}>Sign in →</Text>
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -105,80 +111,88 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: "center",
-    padding: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.xl,
   },
-  headerContainer: {
-    marginBottom: theme.spacing.xxl,
-  },
-  brandBadge: {
-    flexDirection: "row",
+
+  /* Brand hero */
+  heroSection: {
     alignItems: "center",
-    marginBottom: theme.spacing.xl,
+    marginBottom: theme.spacing.xxl,
     gap: 8,
   },
-  brandDot: {
-    width: 8,
-    height: 8,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-  },
-  brandText: {
-    ...theme.typography.caption,
+  logoText: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 42,
+    fontWeight: "700",
     color: theme.colors.primary,
-    letterSpacing: 3,
+    letterSpacing: 8,
   },
-  title: {
-    ...theme.typography.h1,
-    fontSize: 32,
-    marginBottom: 8,
+  tagline: {
+    fontSize: 12,
+    color: theme.colors.text.tertiary,
+    letterSpacing: 0.5,
   },
-  subtitle: {
-    ...theme.typography.body,
-    color: theme.colors.text.secondary,
-  },
+
+  /* Form */
   formContainer: {
-    gap: theme.spacing.lg,
+    gap: theme.spacing.md,
   },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
+  fieldGroup: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    color: theme.colors.text.tertiary,
+    fontWeight: "600",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  input: {
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.sm,
     paddingHorizontal: theme.spacing.md,
-    height: 56,
-  },
-  inputIcon: {
-    marginRight: theme.spacing.sm,
-  },
-  input: {
-    flex: 1,
-    height: "100%",
-    ...theme.typography.body,
+    paddingVertical: 14,
+    fontSize: 14,
     color: theme.colors.text.primary,
+    fontFamily: theme.typography.mono.fontFamily,
   },
   errorText: {
     color: theme.colors.danger,
-    ...theme.typography.caption,
+    fontSize: 11,
     textAlign: "center",
-    marginTop: -theme.spacing.sm,
-    marginBottom: theme.spacing.xs,
+    fontWeight: "500",
   },
-  signupButton: {
-    marginTop: theme.spacing.sm,
-  },
-  footerContainer: {
+
+  /* Divider */
+  dividerRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    marginTop: theme.spacing.xxl,
+    alignItems: "center",
+    gap: 12,
+    marginVertical: theme.spacing.xs,
   },
-  footerText: {
-    ...theme.typography.body,
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  dividerText: {
+    fontSize: 11,
+    color: theme.colors.text.tertiary,
+    letterSpacing: 0.5,
+  },
+
+  /* Link */
+  linkRow: {
+    alignItems: "center",
+    paddingVertical: theme.spacing.sm,
+  },
+  linkText: {
+    fontSize: 12,
     color: theme.colors.text.tertiary,
   },
-  footerLink: {
-    ...theme.typography.body,
+  linkAccent: {
     color: theme.colors.primary,
     fontWeight: "600",
   },

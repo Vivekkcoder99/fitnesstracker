@@ -1,84 +1,104 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Platform,
   Pressable,
   RefreshControl,
+  SafeAreaView,
   ScrollView,
   Text,
-  View,
   TouchableOpacity,
-  StyleSheet
+  View,
+  StyleSheet,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import { auth } from "../../config/firebase";
 import { getUserActivities } from "../../services/activityService";
 import { logout } from "../../services/authService";
 import { getUserProfile } from "../../services/profileService";
 import { theme } from "../../theme";
-import { Ionicons } from "@expo/vector-icons";
-import PrimaryButton from "../../components/PrimaryButton";
-import ActivityCard from "../../components/ActivityCard";
-import CircularProgress from "../../components/CircularProgress";
-import SmoothLineChart from "../../components/SmoothLineChart";
 
-const ACTIVITY_TYPE_LABELS = {
-  walk: "Walk",
-  run: "Run",
-  cycle: "Cycle",
+/* ─── Helpers ──────────────────────────────────────────────── */
+const formatDistanceKm = (meters = 0) => (meters / 1000).toFixed(1);
+
+const formatHours = (seconds = 0) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h >= 1) return `${h}.${Math.floor(m / 6)}`;
+  return `0.${Math.floor(m / 6)}`;
 };
 
-const getActivityIcon = (activityType) => {
-  switch (activityType) {
-    case 'walk': return 'walk';
-    case 'run': return 'body';
-    case 'cycle': return 'bicycle';
-    default: return 'fitness';
-  }
+const formatPace = (paceMinPerKm = 0) => {
+  if (!paceMinPerKm || paceMinPerKm <= 0) return "–";
+  const mins = Math.floor(paceMinPerKm);
+  const secs = Math.round((paceMinPerKm - mins) * 60);
+  return `${mins}:${String(secs).padStart(2, "0")}`;
 };
 
-const getActivityTypeLabel = (activityType) =>
-  ACTIVITY_TYPE_LABELS[activityType] || "Activity";
-
-const formatDistance = (meters = 0) => `${(meters / 1000).toFixed(2)} km`;
-
-const formatDuration = (seconds = 0) => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-
-  if (minutes < 1) {
-    return `${remainingSeconds}s`;
-  }
-  return `${minutes}m ${remainingSeconds}s`;
+const formatTime = (timestamp) => {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 };
 
-const formatDate = (timestamp) => {
-  if (!timestamp) return "Unknown date";
-  return new Date(timestamp).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 18) return "Good Afternoon";
+  return "Good Evening";
 };
 
-const formatProfileNumber = (value, unit) =>
-  value === null || value === undefined ? "Not set" : `${value} ${unit}`;
+const getActivityIcon = (type, workoutType) => {
+  if (type === "cycle") return "🚴";
+  if (type === "walk") return "🚶";
+  if (workoutType === "long") return "🌅";
+  if (workoutType === "tempo") return "⚡";
+  if (workoutType === "easy") return "🏃";
+  return "🏃";
+};
+
+const getWorkoutLabel = (type, workoutType) => {
+  if (workoutType === "easy") return "Easy Run";
+  if (workoutType === "tempo") return "Tempo Run";
+  if (workoutType === "long") return "Long Run";
+  if (workoutType === "free") return "Free Run";
+  if (type === "walk") return "Walk";
+  if (type === "cycle") return "Cycle";
+  return "Run";
+};
+
+const getZoneFromPace = (paceMinPerKm) => {
+  if (!paceMinPerKm || paceMinPerKm <= 0) return null;
+  if (paceMinPerKm > 7.5) return "Z1";
+  if (paceMinPerKm > 6.0) return "Z2";
+  if (paceMinPerKm > 5.0) return "Z3";
+  if (paceMinPerKm > 4.0) return "Z4";
+  return "Z5";
+};
+
+const getInitials = (name) => {
+  if (!name) return "U";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return name.substring(0, 2).toUpperCase();
+};
+
+/* ─── Weekly Bar Chart ──────────────────────────────────────── */
+const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
 const getWeekStartTimestamp = () => {
   const now = new Date();
-  const day = now.getDay(); // 0=Sunday
-  const diff = day === 0 ? 6 : day - 1; // week starts Monday
+  const day = now.getDay();
+  const diff = day === 0 ? 6 : day - 1;
   const weekStart = new Date(now);
   weekStart.setHours(0, 0, 0, 0);
   weekStart.setDate(now.getDate() - diff);
   return weekStart.getTime();
 };
 
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
-
-// Refactored Weekly Chart
-const WeeklyChart = ({ activities }) => {
+const WeeklyBarChart = ({ activities, weekKm }) => {
   const weekStartTs = getWeekStartTimestamp();
   const buckets = Array.from({ length: 7 }, (_, i) => {
     const dayStart = weekStartTs + i * 86400000;
@@ -91,533 +111,479 @@ const WeeklyChart = ({ activities }) => {
       .reduce((sum, a) => sum + (a.distanceMeters || 0) / 1000, 0);
   });
   const todayIdx = (new Date().getDay() + 6) % 7;
+  const maxKm = Math.max(1, ...buckets);
 
   return (
-    <View style={barStripStyles.wrap}>
-      <SmoothLineChart data={buckets} height={80} color={theme.colors.secondary} />
-      <View style={barStripStyles.labelsRow}>
-        {buckets.map((_, i) => (
-          <Text key={i} style={[
-            barStripStyles.label,
-            i === todayIdx && { color: theme.colors.secondary, fontWeight: '700' },
-          ]}>
-            {DAY_LABELS[i]}
-          </Text>
-        ))}
+    <View>
+      {/* Header row */}
+      <View style={barStyles.headerRow}>
+        <Text style={barStyles.headerLabel}>THIS WEEK</Text>
+        <Text style={barStyles.headerValue}>{weekKm.toFixed(1)} km</Text>
+      </View>
+      {/* Bars */}
+      <View style={barStyles.barsRow}>
+        {buckets.map((km, i) => {
+          const pct = km > 0 ? Math.max(8, (km / maxKm) * 100) : 4;
+          const isToday = i === todayIdx;
+          const hasDist = km > 0;
+          return (
+            <View key={i} style={barStyles.barCol}>
+              <View style={barStyles.barTrack}>
+                <View
+                  style={[
+                    barStyles.barFill,
+                    {
+                      height: `${pct}%`,
+                      backgroundColor: hasDist
+                        ? isToday
+                          ? theme.colors.primary
+                          : theme.colors.primaryDark
+                        : theme.colors.surfaceHighlight,
+                    },
+                    isToday && hasDist && barStyles.barGlow,
+                  ]}
+                />
+              </View>
+              <Text
+                style={[
+                  barStyles.barDay,
+                  isToday && { color: theme.colors.primary, fontWeight: "700" },
+                ]}
+              >
+                {DAY_LABELS[i]}
+              </Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
 };
 
-const barStripStyles = StyleSheet.create({
-  wrap: {
-    marginTop: theme.spacing.md,
+const barStyles = StyleSheet.create({
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: theme.spacing.sm,
   },
-  labelsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    marginTop: theme.spacing.sm,
-  },
-  label: {
+  headerLabel: {
     ...theme.typography.caption,
-    fontSize: 10,
+    letterSpacing: 1.5,
+    color: theme.colors.text.secondary,
+  },
+  headerValue: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
+  barsRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    height: 64,
+    gap: 6,
+  },
+  barCol: {
+    flex: 1,
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 5,
+  },
+  barTrack: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "flex-end",
+    borderRadius: 4,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  barFill: {
+    width: "100%",
+    borderRadius: 4,
+    minHeight: 4,
+  },
+  barGlow: {
+    shadowColor: "#C5F135",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  barDay: {
+    fontSize: 8,
     color: theme.colors.text.tertiary,
+    fontFamily: theme.typography.mono.fontFamily,
+    fontWeight: "600",
   },
 });
 
+/* ─── Activity Row Item ─────────────────────────────────────── */
+const ActivityRow = ({ activity, onPress }) => {
+  const icon = getActivityIcon(activity.activityType, activity.workoutType);
+  const label = getWorkoutLabel(activity.activityType, activity.workoutType);
+  const zone = getZoneFromPace(activity.paceMinPerKm || activity.smoothedPaceMinPerKm);
+  const pace = formatPace(activity.paceMinPerKm || activity.smoothedPaceMinPerKm);
+  const dayLabel = formatTime(activity.startedAt || activity.createdAt);
+  const distKm = ((activity.distanceMeters || 0) / 1000).toFixed(1);
+
+  return (
+    <Pressable
+      style={({ pressed }) => [rowStyles.row, pressed && { opacity: 0.75 }]}
+      onPress={onPress}
+    >
+      <View style={rowStyles.iconBox}>
+        <Text style={rowStyles.iconText}>{icon}</Text>
+      </View>
+      <View style={rowStyles.info}>
+        <Text style={rowStyles.name}>{label}</Text>
+        <Text style={rowStyles.meta}>
+          {dayLabel}{pace !== "–" ? ` · ${pace} /km` : ""}{zone ? ` · ${zone}` : ""}
+        </Text>
+      </View>
+      <Text style={rowStyles.dist}>{distKm}km</Text>
+    </Pressable>
+  );
+};
+
+const rowStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  iconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: theme.colors.surfaceHighlight,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  iconText: { fontSize: 14 },
+  info: { flex: 1 },
+  name: { fontSize: 12, fontWeight: "500", color: theme.colors.text.primary },
+  meta: {
+    fontSize: 10,
+    color: theme.colors.text.tertiary,
+    marginTop: 2,
+    fontFamily: theme.typography.mono.fontFamily,
+  },
+  dist: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
+});
+
+/* ─── HomeScreen ────────────────────────────────────────────── */
 const HomeScreen = ({ navigation }) => {
   const [activities, setActivities] = useState([]);
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false);
-  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [error, setError] = useState("");
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [isIosDevice, setIsIosDevice] = useState(false);
 
-  useEffect(() => {
-    if (Platform.OS !== "web") {
-      return;
-    }
-
-    const standalone =
-      window.matchMedia?.("(display-mode: standalone)")?.matches ||
-      window.navigator?.standalone;
-    const userAgent = window.navigator?.userAgent || "";
-
-    setIsStandalone(Boolean(standalone));
-    setIsIosDevice(/iPad|iPhone|iPod/.test(userAgent));
-
-    if (standalone) {
-      return undefined;
-    }
-
-    const handleBeforeInstallPrompt = (event) => {
-      event.preventDefault();
-      setDeferredInstallPrompt(event);
-    };
-
-    const handleAppInstalled = () => {
-      setDeferredInstallPrompt(null);
-    };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    window.addEventListener("appinstalled", handleAppInstalled);
-
-    return () => {
-      window.removeEventListener(
-        "beforeinstallprompt",
-        handleBeforeInstallPrompt
-      );
-      window.removeEventListener("appinstalled", handleAppInstalled);
-    };
-  }, []);
-
-  const shouldShowIosInstallHint =
-    Platform.OS === "web" && !isStandalone && !deferredInstallPrompt && isIosDevice;
-
-  const loadActivities = useCallback(async ({ refreshing = false } = {}) => {
+  const loadData = useCallback(async ({ refreshing = false } = {}) => {
     const userId = auth?.currentUser?.uid;
-    if (!userId) {
-      setActivities([]);
-      setIsLoading(false);
-      return;
-    }
-
+    if (!userId) { setIsLoading(false); return; }
     try {
       setError("");
-      if (refreshing) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-
+      if (refreshing) setIsRefreshing(true); else setIsLoading(true);
       const [nextActivities, nextProfile] = await Promise.all([
         getUserActivities(userId),
         getUserProfile(userId),
       ]);
       setActivities(nextActivities);
       setProfile(nextProfile);
-    } catch (loadError) {
-      setError(loadError.message || "Unable to load activities.");
+    } catch (err) {
+      setError(err.message || "Unable to load activities.");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadActivities();
-    }, [loadActivities])
-  );
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  const totals = useMemo(
-    () =>
-      activities.reduce(
-        (summary, activity) => ({
-          distanceMeters:
-            summary.distanceMeters + (activity.distanceMeters || 0),
-          durationSeconds:
-            summary.durationSeconds + (activity.durationSeconds || 0),
-        }),
-        { distanceMeters: 0, durationSeconds: 0 }
-      ),
+  const totals = useMemo(() =>
+    activities.reduce(
+      (acc, a) => ({
+        distanceMeters: acc.distanceMeters + (a.distanceMeters || 0),
+        durationSeconds: acc.durationSeconds + (a.durationSeconds || 0),
+      }),
+      { distanceMeters: 0, durationSeconds: 0 }
+    ),
     [activities]
   );
 
-  const weeklyProgress = useMemo(() => {
-    const weekStartTimestamp = getWeekStartTimestamp();
-
-    return activities.reduce(
-      (summary, activity) => {
-        const referenceTime = activity.startedAt || activity.createdAt || 0;
-        if (referenceTime < weekStartTimestamp) {
-          return summary;
-        }
-
-        return {
-          sessions: summary.sessions + 1,
-          distanceMeters: summary.distanceMeters + (activity.distanceMeters || 0),
-          durationSeconds:
-            summary.durationSeconds + (activity.durationSeconds || 0),
-        };
-      },
-      { sessions: 0, distanceMeters: 0, durationSeconds: 0 }
-    );
+  const weekKm = useMemo(() => {
+    const weekStart = getWeekStartTimestamp();
+    return activities.reduce((sum, a) => {
+      const ts = a.startedAt || a.createdAt || 0;
+      return ts >= weekStart ? sum + (a.distanceMeters || 0) / 1000 : sum;
+    }, 0);
   }, [activities]);
+
+  const user = auth?.currentUser;
+  const displayName = profile?.name || user?.displayName || user?.email?.split("@")[0] || "Athlete";
+  const initials = getInitials(displayName);
 
   const handleLogout = async () => {
     try {
-      setIsLoggingOut(true);
       await logout();
-    } catch (error) {
-      Alert.alert("Logout failed", error.message || "Failed to log out.");
-    } finally {
-      setIsLoggingOut(false);
+    } catch (err) {
+      Alert.alert("Logout failed", err.message || "Failed to log out.");
     }
   };
 
-  const handleInstallApp = async () => {
-    if (!deferredInstallPrompt) {
-      return;
-    }
-
-    try {
-      setIsInstalling(true);
-      await deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
-      setDeferredInstallPrompt(null);
-    } finally {
-      setIsInstalling(false);
-    }
-  };
+  const recentActivities = activities.slice(0, 5);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={() => loadActivities({ refreshing: true })}
-          tintColor={theme.colors.primary}
-        />
-      }
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Home</Text>
-          <Text style={styles.subtitle}>{formatDate(Date.now())}</Text>
-        </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} disabled={isLoggingOut}>
-          <Ionicons name="log-out-outline" size={20} color={theme.colors.text.tertiary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* PWA Install Prompts */}
-      {Platform.OS === "web" && deferredInstallPrompt ? (
-        <View style={styles.installCard}>
-          <Ionicons name="download-outline" size={32} color={theme.colors.primary} />
-          <View style={styles.installTextContainer}>
-            <Text style={styles.installTitle}>Install App</Text>
-            <Text style={styles.installDesc}>Add to home screen for the best experience.</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => loadData({ refreshing: true })}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {/* ── Header ─────────────────────────────────────── */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.name}>{displayName} 👋</Text>
           </View>
-          <TouchableOpacity style={styles.installButton} onPress={handleInstallApp} disabled={isInstalling}>
-            <Text style={styles.installButtonText}>{isInstalling ? "..." : "Install"}</Text>
+          <TouchableOpacity style={styles.avatarCircle} onPress={handleLogout}>
+            <Text style={styles.avatarText}>{initials}</Text>
           </TouchableOpacity>
         </View>
-      ) : null}
 
-      {shouldShowIosInstallHint ? (
-        <View style={styles.installCard}>
-          <Ionicons name="share-outline" size={32} color={theme.colors.primary} />
-          <View style={styles.installTextContainer}>
-            <Text style={styles.installTitle}>Add to Home Screen</Text>
-            <Text style={styles.installDesc}>Tap the Share button and choose &apos;Add to Home Screen&apos;.</Text>
-          </View>
-        </View>
-      ) : null}
-
-      {/* Circular Progress Hero */}
-      <View style={styles.heroCard}>
-        <View style={styles.heroContentCentered}>
-          <CircularProgress
-            size={160}
-            strokeWidth={14}
-            progress={weeklyProgress.distanceMeters / 40000}
-            color={theme.colors.primary}
-            value={(weeklyProgress.distanceMeters / 1000).toFixed(1)}
-            unit="km"
-            label="This Week"
-          />
-        </View>
-      </View>
-
-      {/* Smooth Line Chart Strip */}
-      <View style={styles.dayStripCard}>
-        <Text style={styles.dayStripLabel}>Activity Trend</Text>
-        <WeeklyChart activities={activities} />
-      </View>
-
-      <PrimaryButton
-        title="Start New Activity"
-        icon="arrow-forward"
-        onPress={() => navigation.navigate("Track")}
-      />
-
-      {/* Two Column Section */}
-      <View style={styles.rowCards}>
-        {/* Weekly Progress Card */}
-        <View style={[styles.card, styles.flex1]}>
-          <Text style={styles.cardTitle}>This Week</Text>
-          <View style={styles.weeklyStatRow}>
-            <Ionicons name="calendar-outline" size={16} color={theme.colors.text.tertiary} />
-            <Text style={styles.statText}>{weeklyProgress.sessions} Sessions</Text>
-          </View>
-          <View style={styles.weeklyStatRow}>
-            <Ionicons name="analytics-outline" size={16} color={theme.colors.text.tertiary} />
-            <Text style={styles.statText}>{formatDistance(weeklyProgress.distanceMeters)}</Text>
-          </View>
-          <View style={styles.weeklyStatRow}>
-            <Ionicons name="timer-outline" size={16} color={theme.colors.text.tertiary} />
-            <Text style={styles.statText}>{formatDuration(weeklyProgress.durationSeconds)}</Text>
-          </View>
-        </View>
-
-        {/* Profile Summary Card */}
-        <Pressable
-          style={({ pressed }) => [styles.card, styles.flex1, pressed && styles.cardPressed]}
-          onPress={() => navigation.navigate("Profile")}
-        >
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Profile</Text>
-            <Ionicons name="pencil" size={16} color={theme.colors.primary} />
-          </View>
-          <Text style={styles.statText} numberOfLines={1}>Age: {profile?.age ?? "--"}</Text>
-          <Text style={styles.statText} numberOfLines={1}>Wt: {formatProfileNumber(profile?.weight, "kg")}</Text>
-          <Text style={styles.statText} numberOfLines={1}>Ht: {formatProfileNumber(profile?.height, "cm")}</Text>
-        </Pressable>
-      </View>
-
-      {/* Recent Activities List */}
-      <View style={styles.listContainer}>
-        <Text style={styles.sectionTitle}>Recent Activities</Text>
-
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color={theme.colors.primary} />
-            <Text style={styles.loadingText}>Loading activities...</Text>
-          </View>
-        ) : null}
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        {!isLoading && activities.length === 0 ? (
-          <View style={styles.emptyStateContainer}>
-            <Ionicons name="leaf-outline" size={48} color={theme.colors.text.tertiary} />
-            <Text style={styles.emptyStateTitle}>No activities yet</Text>
-            <Text style={styles.emptyStateDesc}>
-              Start tracking your first workout to see it here.
+        {/* ── Lifetime Stat Cards ─────────────────────────── */}
+        <View style={styles.statCards}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Total Distance</Text>
+            <Text style={styles.statValue}>
+              {formatDistanceKm(totals.distanceMeters)}
+              <Text style={styles.statUnit}> km</Text>
             </Text>
           </View>
-        ) : null}
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Active Time</Text>
+            <Text style={styles.statValue}>
+              {formatHours(totals.durationSeconds)}
+              <Text style={styles.statUnit}> h</Text>
+            </Text>
+          </View>
+        </View>
 
-        {!isLoading
-          ? activities.map((activity) => (
-            <ActivityCard
-              key={activity.id}
-              activity={activity}
-              onPress={() => navigation.navigate("ActivityDetail", { activity })}
-              formatDistance={formatDistance}
-              formatDuration={formatDuration}
-              formatDate={formatDate}
-              getActivityTypeLabel={getActivityTypeLabel}
-            />
-          ))
-          : null}
-      </View>
-    </ScrollView>
+        {/* ── 7-Day Bar Chart Card ────────────────────────── */}
+        <View style={styles.card}>
+          {isLoading ? (
+            <ActivityIndicator color={theme.colors.primary} style={{ paddingVertical: 32 }} />
+          ) : (
+            <WeeklyBarChart activities={activities} weekKm={weekKm} />
+          )}
+        </View>
+
+        {/* ── Recent Runs Feed ────────────────────────────── */}
+        <View style={styles.card}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>RECENT RUNS</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("Track")}>
+              <Text style={styles.sectionAction}>+ New Run</Text>
+            </TouchableOpacity>
+          </View>
+
+          {error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : isLoading ? (
+            <ActivityIndicator color={theme.colors.primary} style={{ paddingVertical: 24 }} />
+          ) : recentActivities.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="walk-outline" size={32} color={theme.colors.text.tertiary} />
+              <Text style={styles.emptyText}>No activities yet</Text>
+              <Text style={styles.emptyDesc}>Start tracking your first run to see it here.</Text>
+            </View>
+          ) : (
+            recentActivities.map((activity) => (
+              <ActivityRow
+                key={activity.id}
+                activity={activity}
+                onPress={() => navigation.navigate("ActivityDetail", { activity })}
+              />
+            ))
+          )}
+
+          {!isLoading && activities.length > 5 && (
+            <TouchableOpacity
+              style={styles.viewAllBtn}
+              onPress={() => navigation.navigate("History")}
+            >
+              <Text style={styles.viewAllText}>View all {activities.length} runs →</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  contentContainer: {
-    padding: theme.spacing.lg,
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  content: {
+    paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.xl,
-    gap: theme.spacing.lg,
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.md,
   },
+
+  /* Header */
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
+    paddingBottom: 4,
   },
   greeting: {
-    ...theme.typography.h1,
-  },
-  subtitle: {
-    ...theme.typography.caption,
-    marginTop: 4,
-  },
-  logoutButton: {
-    padding: theme.spacing.xs,
-  },
-  installCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.lg,
-    ...theme.shadows.card,
-  },
-  installTextContainer: {
-    flex: 1,
-    marginLeft: theme.spacing.md,
-  },
-  installTitle: {
-    ...theme.typography.h3,
-    fontSize: 14,
-  },
-  installDesc: {
-    ...theme.typography.caption,
-  },
-  installButton: {
-    backgroundColor: theme.colors.accent,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
-  },
-  installButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  heroCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    flexDirection: "row",
-    overflow: "hidden",
-    ...theme.shadows.card,
-  },
-  heroContentCentered: {
-    flex: 1,
-    alignItems: 'center',
-    padding: theme.spacing.xl,
-  },
-  heroAccentRail: {
-    width: 6,
-    backgroundColor: theme.colors.secondary,
-  },
-  heroContent: {
-    flex: 1,
-    padding: theme.spacing.md,
-  },
-  heroLabel: {
-    ...theme.typography.caption,
-    marginBottom: theme.spacing.sm,
-  },
-  heroMainRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
-    marginBottom: theme.spacing.md,
-  },
-  heroMainValue: {
-    ...theme.typography.mono,
-    fontSize: 32,
+    fontSize: 11,
+    color: theme.colors.text.tertiary,
+    letterSpacing: 1,
+    textTransform: "uppercase",
     fontWeight: "600",
+  },
+  name: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: theme.colors.text.primary,
+    marginTop: 1,
+  },
+  avatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: theme.colors.primaryLight,
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 13,
+    fontWeight: "700",
     color: theme.colors.primary,
   },
-  heroMainUnit: {
-    ...theme.typography.mono,
-    fontSize: 16,
-    color: theme.colors.text.tertiary,
-  },
-  progressBarContainer: {
-    height: 4,
-    backgroundColor: theme.colors.surfaceHighlight,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: theme.colors.primary,
-  },
-  dayStripCard: {
+
+  /* Stat cards */
+  statCards: { flexDirection: "row", gap: theme.spacing.sm },
+  statCard: {
+    flex: 1,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    padding: 12,
     ...theme.shadows.card,
   },
-  dayStripLabel: {
-    ...theme.typography.caption,
+  statLabel: {
     fontSize: 9,
-    letterSpacing: 2,
+    color: theme.colors.text.tertiary,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    marginBottom: 4,
+    fontWeight: "600",
+  },
+  statValue: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 26,
+    fontWeight: "700",
+    color: theme.colors.text.primary,
+    lineHeight: 30,
+  },
+  statUnit: {
+    fontSize: 11,
+    color: theme.colors.text.tertiary,
+    fontFamily: theme.typography.mono.fontFamily,
   },
 
-  rowCards: {
-    flexDirection: "row",
-    gap: theme.spacing.md,
-  },
-  flex1: {
-    flex: 1,
-  },
+  /* Cards */
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md,
-    gap: theme.spacing.sm,
     ...theme.shadows.card,
   },
-  cardPressed: {
-    opacity: 0.8,
-  },
-  cardHeader: {
+
+  /* Section header within card */
+  sectionHead: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  cardTitle: {
-    ...theme.typography.caption,
-  },
-  weeklyStatRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-  },
-  statText: {
-    ...theme.typography.mono,
-    fontSize: 13,
-    color: theme.colors.text.primary,
-  },
-  listContainer: {
-    gap: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
   },
   sectionTitle: {
-    ...theme.typography.caption,
-    letterSpacing: 2,
+    fontSize: 11,
+    fontWeight: "600",
+    color: theme.colors.text.secondary,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
   },
-  loadingContainer: {
-    padding: theme.spacing.xl,
+  sectionAction: {
+    fontSize: 10,
+    color: theme.colors.primary,
+    fontWeight: "600",
+  },
+
+  /* Empty state */
+  emptyState: {
     alignItems: "center",
+    paddingVertical: theme.spacing.xl,
     gap: theme.spacing.sm,
   },
-  loadingText: {
-    ...theme.typography.caption,
+  emptyText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: theme.colors.text.secondary,
   },
+  emptyDesc: {
+    fontSize: 11,
+    color: theme.colors.text.tertiary,
+    textAlign: "center",
+  },
+
+  /* View all */
+  viewAllBtn: {
+    paddingTop: theme.spacing.sm,
+    alignItems: "center",
+  },
+  viewAllText: {
+    fontSize: 11,
+    color: theme.colors.primary,
+    fontWeight: "600",
+  },
+
+  /* Error */
   errorText: {
-    ...theme.typography.caption,
+    fontSize: 11,
     color: theme.colors.danger,
     textAlign: "center",
-  },
-  emptyStateContainer: {
-    alignItems: "center",
-    padding: theme.spacing.xl,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderStyle: "dashed",
-    gap: theme.spacing.sm,
-  },
-  emptyStateTitle: {
-    ...theme.typography.h3,
-    fontSize: 15,
-  },
-  emptyStateDesc: {
-    ...theme.typography.body,
-    fontSize: 13,
-    textAlign: "center",
+    paddingVertical: theme.spacing.md,
   },
 });
-
 
 export default HomeScreen;

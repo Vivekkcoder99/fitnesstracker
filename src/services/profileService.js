@@ -21,6 +21,8 @@ const normalizeProfile = (data = {}) => ({
   age: data.age ?? null,
   weight: data.weight ?? null,
   height: data.height ?? null,
+  maxHR: data.maxHR ?? null,
+  goalPace: data.goalPace || "",
   goal: data.goal || "",
   avatarId: data.avatarId || "avatar_1",
 });
@@ -54,6 +56,8 @@ export const saveUserProfile = async (userId, profile) => {
     age: sanitizeNumber(profile.age),
     weight: sanitizeNumber(profile.weight),
     height: sanitizeNumber(profile.height),
+    maxHR: sanitizeNumber(profile.maxHR),
+    goalPace: (profile.goalPace || "").trim(),
     goal: (profile.goal || "").trim(),
     avatarId: profile.avatarId || "avatar_1",
     updatedAt: serverTimestamp(),

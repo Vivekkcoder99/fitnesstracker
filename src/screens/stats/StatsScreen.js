@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,11 +15,11 @@ import { getUserActivities } from "../../services/activityService";
 import { theme } from "../../theme";
 
 /* ─── Helpers ─────────────────────────────────────────────── */
-const formatDistance = (m = 0) => `${(m / 1000).toFixed(1)} km`;
-const formatDuration = (s = 0) => {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+const formatPace = (paceMinPerKm) => {
+  if (!paceMinPerKm || paceMinPerKm <= 0) return "–:––";
+  const mins = Math.floor(paceMinPerKm);
+  const secs = Math.round((paceMinPerKm - mins) * 60);
+  return `${mins}:${String(secs).padStart(2, "0")}`;
 };
 
 const getMondayOfWeek = (date) => {
@@ -30,53 +31,100 @@ const getMondayOfWeek = (date) => {
   return d;
 };
 
-/* ─── 7-Week Bar Chart ────────────────────────────────────── */
-function WeeklyBarChart({ activities }) {
-  const weeks = useMemo(() => {
-    const now = new Date();
-    const result = [];
-    for (let w = 6; w >= 0; w--) {
-      const monday = getMondayOfWeek(new Date(now.getTime() - w * 7 * 86400000));
-      const sunday = new Date(monday.getTime() + 6 * 86400000);
-      sunday.setHours(23, 59, 59, 999);
-      const label = monday.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-      const shortLabel = monday.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
-      const total = activities
-        .filter((a) => {
-          const ts = a.startedAt || a.createdAt || 0;
-          return ts >= monday.getTime() && ts <= sunday.getTime();
-        })
-        .reduce((sum, a) => sum + (a.distanceMeters || 0) / 1000, 0);
-      result.push({ label, shortLabel, total, isCurrent: w === 0 });
-    }
-    return result;
-  }, [activities]);
+/* ─── Time Range Definitions ──────────────────────────────── */
+const TIME_RANGES = [
+  { label: "4W",  weeks: 4 },
+  { label: "3M",  weeks: 13 },
+  { label: "6M",  weeks: 26 },
+  { label: "1Y",  weeks: 52 },
+];
 
-  const maxKm = Math.max(1, ...weeks.map((w) => w.total));
+/* ─── Sparkline Chart ─────────────────────────────────────── */
+function SparkLine({ data, width = 220, height = 40 }) {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(...data, 0.001);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const pts = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * width;
+      const y = height - ((v - min) / range) * (height - 4) - 2;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const fillPts = `0,${height} ${pts} ${width},${height}`;
 
   return (
-    <View style={chart.wrap}>
-      {weeks.map((w, i) => {
-        const pct = w.total / maxKm;
+    <View style={{ height, width: "100%" }}>
+      {/* We use a native SVG-like approach with a View-based chart */}
+      <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "flex-end", gap: 2 }}>
+        {data.map((v, i) => {
+          const pct = max > 0 ? ((v - min) / range) : 0;
+          return (
+            <View
+              key={i}
+              style={{
+                flex: 1,
+                height: `${Math.max(4, pct * 100)}%`,
+                backgroundColor: `rgba(197,241,53,${0.15 + pct * 0.5})`,
+                borderRadius: 2,
+                borderTopWidth: 1.5,
+                borderTopColor: theme.colors.primary,
+              }}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/* ─── Zone Distribution ───────────────────────────────────── */
+const ZONE_DEFS = [
+  { key: "z1", label: "Z1", name: "Easy",   color: theme.colors.z1 },
+  { key: "z2", label: "Z2", name: "Base",   color: theme.colors.z2 },
+  { key: "z3", label: "Z3", name: "Tempo",  color: theme.colors.z3 },
+  { key: "z4", label: "Z4", name: "Hard",   color: theme.colors.z4 },
+  { key: "z5", label: "Z5", name: "Max",    color: theme.colors.z5 },
+];
+
+const getPaceZoneIdx = (paceMinPerKm) => {
+  if (!paceMinPerKm || paceMinPerKm <= 0) return -1;
+  if (paceMinPerKm > 7.5) return 0; // Z1
+  if (paceMinPerKm > 6.0) return 1; // Z2
+  if (paceMinPerKm > 5.0) return 2; // Z3
+  if (paceMinPerKm > 4.0) return 3; // Z4
+  return 4;                          // Z5
+};
+
+function ZoneDistribution({ activities }) {
+  const counts = useMemo(() => {
+    const c = [0, 0, 0, 0, 0];
+    activities.forEach((a) => {
+      const idx = getPaceZoneIdx(a.paceMinPerKm);
+      if (idx >= 0) c[idx]++;
+    });
+    return c;
+  }, [activities]);
+
+  const total = counts.reduce((s, c) => s + c, 0) || 1;
+
+  return (
+    <View style={zoneStyles.wrap}>
+      {ZONE_DEFS.map((z, i) => {
+        const pct = Math.round((counts[i] / total) * 100);
         return (
-          <View key={i} style={chart.col}>
-            {w.total > 0 && (
-              <Text style={chart.barVal}>{w.total.toFixed(1)}</Text>
-            )}
-            <View style={chart.barBg}>
+          <View key={z.key} style={zoneStyles.row}>
+            <Text style={[zoneStyles.zoneLabel, { color: z.color }]}>{z.label}</Text>
+            <View style={zoneStyles.barBg}>
               <View
                 style={[
-                  chart.barFill,
-                  {
-                    height: `${Math.max(4, pct * 100)}%`,
-                    backgroundColor: w.isCurrent ? theme.colors.primary : "rgba(255,255,255,0.18)",
-                  },
+                  zoneStyles.barFill,
+                  { width: `${pct}%`, backgroundColor: z.color },
                 ]}
               />
             </View>
-            <Text style={[chart.barLabel, w.isCurrent && { color: theme.colors.primary }]}>
-              {w.shortLabel}
-            </Text>
+            <Text style={zoneStyles.pct}>{pct}%</Text>
           </View>
         );
       })}
@@ -84,186 +132,127 @@ function WeeklyBarChart({ activities }) {
   );
 }
 
-const chart = StyleSheet.create({
-  wrap: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    height: 120,
-    gap: 6,
-    paddingTop: 20,
-  },
-  col: {
-    flex: 1,
-    alignItems: "center",
-    height: "100%",
-    justifyContent: "flex-end",
-    gap: 4,
+const zoneStyles = StyleSheet.create({
+  wrap: { gap: 8, marginTop: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  zoneLabel: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 9,
+    fontWeight: "700",
+    width: 22,
+    letterSpacing: 0.5,
   },
   barBg: {
-    width: "100%",
     flex: 1,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 2,
-    justifyContent: "flex-end",
+    height: 6,
+    backgroundColor: theme.colors.surfaceHighlight,
+    borderRadius: 3,
     overflow: "hidden",
   },
-  barFill: {
-    width: "100%",
-    borderRadius: 2,
-  },
-  barVal: {
-    position: "absolute",
-    top: -18,
-    fontSize: 8,
-    color: theme.colors.primary,
-    fontFamily: "monospace",
-    textAlign: "center",
-  },
-  barLabel: {
-    fontSize: 8,
-    color: "rgba(255,255,255,0.4)",
-    textAlign: "center",
+  barFill: { height: "100%", borderRadius: 3 },
+  pct: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 9,
+    color: theme.colors.text.tertiary,
+    width: 28,
+    textAlign: "right",
   },
 });
 
-const ZONES = [
-  { label: "Recovery", color: theme.colors.primaryDark, range: [0, 6] },
-  { label: "Easy", color: theme.colors.success, range: [6, 7] },
-  { label: "Tempo", color: theme.colors.primary, range: [7, 9] },
-  { label: "Threshold", color: theme.colors.warning, range: [9, 12] },
-  { label: "VO₂ Max", color: theme.colors.secondary, range: [12, 99] },
-];
-
-function ZoneBar({ activities }) {
-  const zoneCounts = useMemo(() => {
-    const counts = new Array(ZONES.length).fill(0);
-    activities.forEach((a) => {
-      const pace = a.paceMinPerKm || 0;
-      if (pace <= 0) return;
-      const idx = ZONES.findIndex((z) => pace >= z.range[0] && pace < z.range[1]);
-      if (idx >= 0) counts[idx]++;
-    });
-    return counts;
-  }, [activities]);
-
-  const total = zoneCounts.reduce((s, c) => s + c, 0) || 1;
-
-  return (
-    <View style={zones.wrap}>
-      <View style={zones.bar}>
-        {ZONES.map((z, i) =>
-          zoneCounts[i] > 0 ? (
-            <View
-              key={i}
-              style={[zones.segment, { flex: zoneCounts[i], backgroundColor: z.color }]}
-            />
-          ) : null
-        )}
-      </View>
-      <View style={zones.legend}>
-        {ZONES.map((z, i) => (
-          <View key={i} style={zones.legendItem}>
-            <View style={[zones.dot, { backgroundColor: z.color }]} />
-            <Text style={zones.legendLabel}>{z.label}</Text>
-            <Text style={zones.legendPct}>
-              {Math.round((zoneCounts[i] / total) * 100)}%
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-const zones = StyleSheet.create({
-  wrap: { gap: theme.spacing.md },
-  bar: {
-    height: 10,
-    flexDirection: "row",
-    borderRadius: 2,
-    overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-  segment: { height: "100%" },
-  legend: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.spacing.sm,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    minWidth: "45%",
-  },
-  dot: { width: 6, height: 6, borderRadius: 1 },
-  legendLabel: {
-    flex: 1,
-    fontSize: 11,
-    color: "rgba(255,255,255,0.6)",
-  },
-  legendPct: {
-    fontFamily: "monospace",
-    fontSize: 11,
-    color: "rgba(255,255,255,0.9)",
-  },
-});
-
-/* ─── PR Cards ────────────────────────────────────────────── */
+/* ─── Personal Records ────────────────────────────────────── */
 function PRCards({ activities }) {
   const prs = useMemo(() => {
-    const runs = activities.filter(
-      (a) => a.activityType === "run" && a.distanceMeters >= 4800
-    );
+    const runs = activities.filter((a) => a.activityType === "run" && a.distanceMeters >= 4800);
     const fiveK = runs
       .filter((a) => a.distanceMeters >= 4800 && a.distanceMeters <= 5200)
       .sort((a, b) => (a.paceMinPerKm || 99) - (b.paceMinPerKm || 99))[0];
     const tenK = runs
       .filter((a) => a.distanceMeters >= 9700 && a.distanceMeters <= 10300)
       .sort((a, b) => (a.paceMinPerKm || 99) - (b.paceMinPerKm || 99))[0];
-    const longest = [...activities].sort(
-      (a, b) => (b.distanceMeters || 0) - (a.distanceMeters || 0)
-    )[0];
+    const longest = [...activities].sort((a, b) => (b.distanceMeters || 0) - (a.distanceMeters || 0))[0];
     const fastest = [...activities]
       .filter((a) => (a.paceMinPerKm || 0) > 0)
       .sort((a, b) => (a.paceMinPerKm || 99) - (b.paceMinPerKm || 99))[0];
 
     return [
-      { label: "5K Pace", value: fiveK ? `${fiveK.paceMinPerKm?.toFixed(2)} /km` : "–" },
-      { label: "10K Pace", value: tenK ? `${tenK.paceMinPerKm?.toFixed(2)} /km` : "–" },
-      { label: "Longest", value: longest ? formatDistance(longest.distanceMeters) : "–" },
-      { label: "Best Pace", value: fastest ? `${fastest.paceMinPerKm?.toFixed(2)} /km` : "–" },
+      { label: "5K PACE",  value: fiveK   ? formatPace(fiveK.paceMinPerKm)   : "–" },
+      { label: "10K PACE", value: tenK    ? formatPace(tenK.paceMinPerKm)    : "–" },
+      { label: "LONGEST",  value: longest ? `${(longest.distanceMeters / 1000).toFixed(1)}km` : "–" },
+      { label: "BEST",     value: fastest ? formatPace(fastest.paceMinPerKm) : "–" },
     ];
   }, [activities]);
 
   return (
-    <View style={pr.grid}>
+    <View style={prStyles.grid}>
       {prs.map((p) => (
-        <View key={p.label} style={pr.card}>
-          <Text style={pr.cardLabel}>{p.label}</Text>
-          <Text style={pr.cardValue}>{p.value}</Text>
+        <View key={p.label} style={prStyles.card}>
+          <Text style={prStyles.label}>{p.label}</Text>
+          <Text style={prStyles.value}>{p.value}</Text>
         </View>
       ))}
     </View>
   );
 }
 
-const pr = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 1, backgroundColor: theme.colors.border, borderRadius: theme.borderRadius.sm, overflow: "hidden" },
-  card: { width: "49.9%", backgroundColor: theme.colors.surface, padding: theme.spacing.md, gap: 6 },
-  cardLabel: { ...theme.typography.caption, fontSize: 9, letterSpacing: 2 },
-  cardValue: { fontFamily: "monospace", fontSize: 22, fontWeight: "600", color: theme.colors.text.primary },
+const prStyles = StyleSheet.create({
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 1,
+    backgroundColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    overflow: "hidden",
+  },
+  card: {
+    width: "49.9%",
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    gap: 6,
+  },
+  label: { ...theme.typography.caption, fontSize: 8, letterSpacing: 2 },
+  value: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text.primary,
+  },
 });
 
-/* ─── Stat Tabs ───────────────────────────────────────────── */
-const TABS = ["Distance", "Pace", "Duration"];
+/* ─── Delta Badge ─────────────────────────────────────────── */
+const DeltaBadge = ({ delta, invert = false }) => {
+  if (delta === null || delta === undefined) return null;
+  const positive = invert ? delta < 0 : delta > 0;
+  return (
+    <View style={[deltaStyles.badge, positive ? deltaStyles.good : deltaStyles.bad]}>
+      <Text style={[deltaStyles.text, positive ? deltaStyles.goodText : deltaStyles.badText]}>
+        {delta > 0 ? "↑ +" : "↓ "}{Math.abs(delta).toFixed(1)}
+      </Text>
+    </View>
+  );
+};
+
+const deltaStyles = StyleSheet.create({
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+    marginLeft: 8,
+  },
+  good: { backgroundColor: theme.colors.primaryLight },
+  bad: { backgroundColor: "rgba(239,68,68,0.15)" },
+  text: { fontFamily: theme.typography.mono.fontFamily, fontSize: 10, fontWeight: "700" },
+  goodText: { color: theme.colors.primary },
+  badText: { color: theme.colors.danger },
+});
 
 /* ─── StatsScreen ─────────────────────────────────────────── */
 const StatsScreen = () => {
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
+  const [rangeIdx, setRangeIdx] = useState(0);
 
   const load = useCallback(async ({ refreshing = false } = {}) => {
     const userId = auth?.currentUser?.uid;
@@ -280,213 +269,181 @@ const StatsScreen = () => {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  /* All-time totals */
-  const totals = useMemo(() => {
-    return activities.reduce(
-      (acc, a) => ({
-        distance: acc.distance + (a.distanceMeters || 0) / 1000,
-        duration: acc.duration + (a.durationSeconds || 0),
-        count: acc.count + 1,
-      }),
-      { distance: 0, duration: 0, count: 0 }
-    );
-  }, [activities]);
+  const { weeks: rangeWeeks } = TIME_RANGES[rangeIdx];
 
+  /* Activities in range */
+  const rangedActivities = useMemo(() => {
+    const cutoff = Date.now() - rangeWeeks * 7 * 86400000;
+    return activities.filter((a) => (a.startedAt || a.createdAt || 0) >= cutoff);
+  }, [activities, rangeWeeks]);
+
+  /* Weekly volume data for sparkline */
+  const weeklyVolumes = useMemo(() => {
+    const now = new Date();
+    const result = [];
+    for (let w = rangeWeeks - 1; w >= 0; w--) {
+      const monday = getMondayOfWeek(new Date(now.getTime() - w * 7 * 86400000));
+      const sunday = new Date(monday.getTime() + 6 * 86400000);
+      sunday.setHours(23, 59, 59, 999);
+      const total = rangedActivities
+        .filter((a) => {
+          const ts = a.startedAt || a.createdAt || 0;
+          return ts >= monday.getTime() && ts <= sunday.getTime();
+        })
+        .reduce((sum, a) => sum + (a.distanceMeters || 0) / 1000, 0);
+      result.push(total);
+    }
+    return result.slice(-Math.min(rangeWeeks, 12)); // Show at most last 12 weeks for readability
+  }, [rangedActivities, rangeWeeks]);
+
+  /* Totals */
+  const totalKm = rangedActivities.reduce((s, a) => s + (a.distanceMeters || 0) / 1000, 0);
   const avgPace = useMemo(() => {
-    const paced = activities.filter((a) => a.paceMinPerKm > 0);
+    const paced = rangedActivities.filter((a) => a.paceMinPerKm > 0);
     if (!paced.length) return null;
     return paced.reduce((s, a) => s + a.paceMinPerKm, 0) / paced.length;
-  }, [activities]);
+  }, [rangedActivities]);
+
+  /* Delta: compare latest half vs older half of range */
+  const volumeDelta = useMemo(() => {
+    if (weeklyVolumes.length < 2) return null;
+    const half = Math.floor(weeklyVolumes.length / 2);
+    const older = weeklyVolumes.slice(0, half);
+    const newer = weeklyVolumes.slice(half);
+    const avgOld = older.reduce((s, v) => s + v, 0) / (older.length || 1);
+    const avgNew = newer.reduce((s, v) => s + v, 0) / (newer.length || 1);
+    return avgNew - avgOld;
+  }, [weeklyVolumes]);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={() => load({ refreshing: true })}
-          tintColor={theme.colors.primary}
-        />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.pageTitle}>Trends</Text>
-        <Text style={styles.pageSubtitle}>Performance over time</Text>
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => load({ refreshing: true })}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.pageTitle}>Trends</Text>
+        </View>
 
-      {isLoading ? (
-        <ActivityIndicator color={theme.colors.primary} style={{ marginTop: 48 }} />
-      ) : (
-        <>
-          {/* All-time hero stats */}
-          <View style={styles.heroRow}>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroValue}>{totals.distance.toFixed(1)}</Text>
-              <Text style={styles.heroUnit}>total km</Text>
-            </View>
-            <View style={styles.heroDivider} />
-            <View style={styles.heroStat}>
-              <Text style={styles.heroValue}>{totals.count}</Text>
-              <Text style={styles.heroUnit}>activities</Text>
-            </View>
-            <View style={styles.heroDivider} />
-            <View style={styles.heroStat}>
-              <Text style={[styles.heroValue, { color: theme.colors.primary }]}>
-                {avgPace ? avgPace.toFixed(2) : "–"}
+        {/* Time Range Chips */}
+        <View style={styles.rangeRow}>
+          {TIME_RANGES.map((r, i) => (
+            <Pressable
+              key={r.label}
+              onPress={() => setRangeIdx(i)}
+              style={[styles.rangeChip, rangeIdx === i && styles.rangeChipActive]}
+            >
+              <Text style={[styles.rangeLabel, rangeIdx === i && styles.rangeLabelActive]}>
+                {r.label}
               </Text>
-              <Text style={styles.heroUnit}>avg pace</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {isLoading ? (
+          <ActivityIndicator color={theme.colors.primary} style={{ marginTop: 48 }} />
+        ) : (
+          <>
+            {/* Weekly Volume Card */}
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>WEEKLY VOLUME</Text>
+              <View style={styles.metaRow}>
+                <Text style={styles.bigVal}>{totalKm.toFixed(1)}</Text>
+                <Text style={styles.bigUnit}> km</Text>
+                <DeltaBadge delta={volumeDelta} />
+              </View>
+              <SparkLine data={weeklyVolumes} height={44} />
             </View>
-          </View>
 
-          {/* Tabs */}
-          <View style={styles.tabRow}>
-            {TABS.map((tab, i) => (
-              <Pressable
-                key={tab}
-                onPress={() => setActiveTab(i)}
-                style={[styles.tab, activeTab === i && styles.tabActive]}
-              >
-                <Text style={[styles.tabText, activeTab === i && styles.tabTextActive]}>
-                  {tab}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+            {/* Avg Pace Card */}
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>AVG PACE</Text>
+              <View style={styles.metaRow}>
+                <Text style={styles.bigVal}>{formatPace(avgPace)}</Text>
+                <Text style={styles.bigUnit}> /km</Text>
+              </View>
+              <SparkLine
+                data={rangedActivities.map((a) => a.paceMinPerKm || 0).filter(Boolean)}
+                height={44}
+              />
+            </View>
 
-          {/* Weekly Bar Chart */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Weekly {TABS[activeTab]}</Text>
-            <Text style={styles.cardSubtitle}>Last 7 weeks · km</Text>
-            <WeeklyBarChart activities={activities} />
-          </View>
+            {/* Pace Zone Distribution */}
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>PACE ZONE DISTRIBUTION</Text>
+              <ZoneDistribution activities={rangedActivities} />
+            </View>
 
-          {/* Pace Zones */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Pace Distribution</Text>
-            <Text style={styles.cardSubtitle}>Time in zone by pace</Text>
-            <ZoneBar activities={activities} />
-          </View>
-
-          {/* Personal Records */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Personal Records</Text>
-            <PRCards activities={activities} />
-          </View>
-
-          {/* Activity type breakdown */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Activity Breakdown</Text>
-            <Text style={styles.cardSubtitle}>By type</Text>
-            <ActivityBreakdown activities={activities} />
-          </View>
-        </>
-      )}
-    </ScrollView>
+            {/* Personal Records */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>PERSONAL RECORDS</Text>
+              <PRCards activities={activities} />
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
-/* ─── Activity Breakdown ──────────────────────────────────── */
-function ActivityBreakdown({ activities }) {
-  const breakdown = useMemo(() => {
-    const map = {};
-    activities.forEach((a) => {
-      const type = a.activityType || "other";
-      if (!map[type]) map[type] = { count: 0, km: 0 };
-      map[type].count++;
-      map[type].km += (a.distanceMeters || 0) / 1000;
-    });
-    return Object.entries(map).sort((a, b) => b[1].km - a[1].km);
-  }, [activities]);
-
-  const totalKm = breakdown.reduce((s, [, v]) => s + v.km, 0) || 1;
-  const typeColor = { run: theme.colors.primary, walk: theme.colors.secondary, cycle: theme.colors.accent };
-
-  return (
-    <View style={bd.wrap}>
-      {breakdown.map(([type, stats]) => (
-        <View key={type} style={bd.row}>
-          <Text style={bd.type}>{type.toUpperCase()}</Text>
-          <View style={bd.barBg}>
-            <View
-              style={[
-                bd.barFill,
-                {
-                  width: `${(stats.km / totalKm) * 100}%`,
-                  backgroundColor: typeColor[type] || "rgba(255,255,255,0.3)",
-                },
-              ]}
-            />
-          </View>
-          <Text style={bd.km}>{stats.km.toFixed(1)} km</Text>
-          <Text style={bd.count}>{stats.count}×</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const bd = StyleSheet.create({
-  wrap: { gap: 12, marginTop: 4 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10 },
-  type: { fontSize: 9, fontWeight: "700", letterSpacing: 1, color: "rgba(255,255,255,0.5)", width: 44 },
-  barBg: { flex: 1, height: 6, backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 2, overflow: "hidden" },
-  barFill: { height: "100%", borderRadius: 2 },
-  km: { fontFamily: "monospace", fontSize: 11, color: theme.colors.text.primary, width: 52, textAlign: "right" },
-  count: { fontFamily: "monospace", fontSize: 11, color: "rgba(255,255,255,0.4)", width: 24, textAlign: "right" },
-});
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  content: { padding: theme.spacing.lg, paddingTop: theme.spacing.xl, gap: theme.spacing.lg },
-  header: { gap: 4 },
-  pageTitle: { ...theme.typography.h1, fontSize: 32 },
-  pageSubtitle: { ...theme.typography.body, color: theme.colors.text.secondary },
+  content: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.md,
+  },
+  header: { paddingBottom: 4 },
+  pageTitle: { ...theme.typography.h1 },
 
-  heroRow: {
-    flexDirection: "row",
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    overflow: "hidden",
-    ...theme.shadows.card,
+  rangeRow: { flexDirection: "row", gap: 6 },
+  rangeChip: {
+    backgroundColor: theme.colors.surfaceHighlight,
+    borderRadius: theme.borderRadius.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
-  heroStat: { flex: 1, alignItems: "center", padding: theme.spacing.md, gap: 2 },
-  heroValue: {
-    fontFamily: "monospace",
-    fontSize: 22,
-    fontWeight: "600",
-    color: theme.colors.text.primary,
+  rangeChipActive: { backgroundColor: theme.colors.primary },
+  rangeLabel: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 10,
+    fontWeight: "700",
+    color: theme.colors.text.secondary,
   },
-  heroUnit: { ...theme.typography.caption, fontSize: 9, letterSpacing: 1 },
-  heroDivider: { width: 1, backgroundColor: theme.colors.border, marginVertical: theme.spacing.md },
-
-  tabRow: {
-    flexDirection: "row",
-    gap: 1,
-    backgroundColor: theme.colors.border,
-    borderRadius: theme.borderRadius.full,
-    overflow: "hidden",
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: theme.spacing.sm,
-    alignItems: "center",
-    backgroundColor: theme.colors.surface,
-  },
-  tabActive: { backgroundColor: theme.colors.background },
-  tabText: { ...theme.typography.caption, fontSize: 9, color: theme.colors.text.tertiary },
-  tabTextActive: { color: theme.colors.primary },
+  rangeLabelActive: { color: theme.colors.text.inverse },
 
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md,
-    gap: 6,
+    gap: 10,
     ...theme.shadows.card,
   },
-  cardTitle: { ...theme.typography.h3, fontSize: 15 },
-  cardSubtitle: { ...theme.typography.caption, fontSize: 9, marginBottom: 8 },
+  cardLabel: { ...theme.typography.caption, color: theme.colors.text.tertiary, letterSpacing: 1.5 },
+  metaRow: { flexDirection: "row", alignItems: "baseline" },
+  bigVal: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 28,
+    fontWeight: "700",
+    color: theme.colors.text.primary,
+    letterSpacing: -1,
+  },
+  bigUnit: {
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 13,
+    color: theme.colors.text.tertiary,
+  },
 
   section: { gap: theme.spacing.sm },
   sectionLabel: { ...theme.typography.caption, letterSpacing: 2 },

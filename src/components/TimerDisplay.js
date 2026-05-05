@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { theme } from "../theme";
 
-const TimerDisplay = ({ seconds, label = "Time" }) => {
+const TimerDisplay = ({ seconds, label = "Elapsed Time" }) => {
   const formatTime = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -30,17 +30,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   time: {
-    ...theme.typography.mono,
-    fontSize: 72,
+    fontFamily: theme.typography.mono.fontFamily,
+    fontSize: 48,
     fontWeight: "700",
     color: theme.colors.text.primary,
     letterSpacing: -2,
   },
   label: {
-    ...theme.typography.caption,
-    marginTop: theme.spacing.xs,
-    letterSpacing: 4,
-    color: theme.colors.primary,
+    fontSize: 9,
+    color: theme.colors.text.tertiary,
+    fontWeight: "600",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginTop: 4,
   },
 });
 
