@@ -225,7 +225,7 @@ const TrackActivityScreen = ({ navigation }) => {
     pauseReasonRef.current = reason;
   }, [isTracking]);
 
-  const resumeFromAutoPause = (timestampMs) => {
+  const resumeFromAutoPause = useCallback((timestampMs) => {
     resumedAtMsRef.current = timestampMs;
     lastMovementAtMsRef.current = timestampMs;
     setIsPaused(false);
@@ -233,9 +233,9 @@ const TrackActivityScreen = ({ navigation }) => {
     setMessage("Resumed automatically.");
     isPausedRef.current = false;
     pauseReasonRef.current = null;
-  };
+  }, []);
 
-  const isMeaningfulMovement = (previous, nextPoint, timestampMs) => {
+  const isMeaningfulMovement = useCallback((previous, nextPoint, timestampMs) => {
     if (!previous) return false;
 
     const accuracy = Number(nextPoint.accuracy || 9999);
@@ -252,7 +252,7 @@ const TrackActivityScreen = ({ navigation }) => {
       speedMps >= bounds.minActiveMps &&
       speedMps <= bounds.maxMps
     );
-  };
+  }, [activityType]);
 
   const processMovementSample = (nextPoint, timestampMs) => {
     const previous = lastValidPointRef.current;
@@ -435,7 +435,7 @@ const TrackActivityScreen = ({ navigation }) => {
 
       return next;
     });
-  }, [activityType, isPaused, resumeFromAutoPause]);
+  }, [activityType, isPaused, resumeFromAutoPause, isMeaningfulMovement]);
 
   const startLocationWatch = async () => {
     try {
@@ -802,8 +802,9 @@ const TrackActivityScreen = ({ navigation }) => {
   // so we don't stitch stale background coordinates into the route
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
+      const prevState = appStateRef.current;
       if (
-        appStateRef.current.match(/inactive|background/) &&
+        (prevState === "inactive" || prevState === "background") &&
         nextAppState === "active" &&
         isTracking &&
         !isPausedRef.current
