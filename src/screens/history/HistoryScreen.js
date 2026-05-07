@@ -311,13 +311,12 @@ const HistoryScreen = ({ navigation }) => {
               const pace = a.paceMinPerKm ? formatPace(a.paceMinPerKm) : "–";
               const km = ((a.distanceMeters || 0) / 1000).toFixed(1);
               const label =
-                wt === "easy"  ? "Easy Run"
+                a.activityType === "walk"  ? "Walk"
+                : a.activityType === "cycle" ? "Cycle"
                 : wt === "tempo" ? "Tempo Run"
                 : wt === "long"  ? "Long Run"
                 : wt === "free"  ? "Free Run"
-                : wt === "walk"  ? "Walk"
-                : wt === "cycle" ? "Cycle"
-                : "Run";
+                : "Easy Run";
               return (
                 <Pressable
                   key={a.id}

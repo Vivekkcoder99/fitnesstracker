@@ -25,13 +25,14 @@ const formatActiveTime = (seconds = 0) => {
 };
 
 const getWorkoutLabel = (activityType, workoutType) => {
-  if (workoutType === "easy")  return "Easy Run";
+  // activityType takes priority — always show Walk/Cycle correctly
+  if (activityType === "walk") return "Walk";
+  if (activityType === "cycle") return "Cycle";
+  // For runs, use the workout sub-type
   if (workoutType === "tempo") return "Tempo Run";
   if (workoutType === "long")  return "Long Run";
   if (workoutType === "free")  return "Free Run";
-  if (activityType === "walk") return "Walk";
-  if (activityType === "cycle") return "Cycle";
-  return "Run";
+  return "Easy Run";
 };
 
 /* ─── PR Detection ─────────────────────────────────────────── */
@@ -183,13 +184,6 @@ const ActivitySummaryScreen = ({ route, navigation }) => {
           ))}
         </View>
 
-        {/* ── Splits Table ───────────────────────────────── */}
-        {(activity.paceSeriesMinPerKm?.length > 0) && (
-          <View style={styles.card}>
-            <Text style={styles.sectionLabel}>SPLITS</Text>
-            <SplitsTable paceSeriesMinPerKm={activity.paceSeriesMinPerKm} />
-          </View>
-        )}
 
         {/* ── Actions ────────────────────────────────────── */}
         <View style={styles.actions}>
