@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Alert, TouchableOpacity, ActivityIndicator, StyleSheet, SafeAreaView, Platform, Image, DeviceEventEmitter } from "react-native";
+import { View, Text, Alert, TouchableOpacity, ActivityIndicator, StyleSheet, SafeAreaView, Platform, Image, DeviceEventEmitter, AppState } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../theme";
 import { auth } from "../../config/firebase";
@@ -32,6 +32,10 @@ const MIN_DISTANCE_METERS = 3.0;
 const MIN_REQUIRED_ACCURACY_METERS = 100;
 const AUTO_PAUSE_IDLE_MS = 15000;
 const PACE_SMOOTHING_WINDOW = 5;
+const STALE_TIMESTAMP_MS = 10000;          // reject coordinates older than 10s
+const MAX_JUMP_METERS = 200;               // reject impossible teleport jumps
+const RECOVERY_FRESH_POINTS_NEEDED = 3;    // need 3 good points after unlock before stitching
+const CAMERA_UPDATE_INTERVAL_MS = 2000;    // throttle camera animations to every 2s
 const WORKOUT_TYPES = [
   { label: "Easy", value: "easy" },
   { label: "Tempo", value: "tempo" },
@@ -136,7 +140,8 @@ const interpolatePoint = (startPoint, endPoint, ratio) => {
 const TrackActivityScreen = ({ navigation }) => {
   const [activityType, setActivityType] = useState("run");
   const [workoutType, setWorkoutType] = useState("easy");
-  const [autoPauseEnabled, setAutoPauseEnabled] = useState(true);
+  // Walk defaults to auto-pause OFF (slow GPS speeds cause false pauses)
+  const [autoPauseEnabled, setAutoPauseEnabled] = useState(activityType !== "walk");
   const [targetMode, setTargetMode] = useState("open");
   const [targetValue, setTargetValue] = useState("");
   const [gpsReady, setGpsReady] = useState(false);
@@ -150,7 +155,6 @@ const TrackActivityScreen = ({ navigation }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [avatarId, setAvatarId] = useState("avatar_1");
   const [activeSeconds, setActiveSeconds] = useState(0);
-  // totalSteps state removed
   const [smoothedPaceMinPerKm, setSmoothedPaceMinPerKm] = useState(0);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const isProcessingRef = useRef(false);
@@ -168,6 +172,10 @@ const TrackActivityScreen = ({ navigation }) => {
   const manualPauseCountRef = useRef(0);
   const segmentPacesRef = useRef([]);
   const mapRef = useRef(null);
+  const recoveryCounterRef = useRef(0);      // counts fresh points after app resumes
+  const isRecoveringRef = useRef(false);     // true while waiting for fresh points after unlock
+  const lastCameraUpdateMsRef = useRef(0);   // throttle camera animations
+  const appStateRef = useRef(AppState.currentState);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -183,6 +191,13 @@ const TrackActivityScreen = ({ navigation }) => {
     };
     loadProfile();
   }, []);
+
+  // When activity type changes (pre-tracking), sync auto-pause default
+  useEffect(() => {
+    if (!isTracking) {
+      setAutoPauseEnabled(activityType !== "walk");
+    }
+  }, [activityType, isTracking]);
 
   const pauseTracking = useCallback((reason) => {
     if (!isTracking || isPausedRef.current) return;
@@ -296,6 +311,13 @@ const TrackActivityScreen = ({ navigation }) => {
     }
 
     const timestampMs = Number(location?.timestamp || Date.now());
+    const now = Date.now();
+
+    // ── STALE COORDINATE REJECTION ──
+    // Reject coordinates whose timestamp is too old (queued background updates)
+    if (Math.abs(now - timestampMs) > STALE_TIMESTAMP_MS) {
+      return; // silently discard stale point
+    }
 
     // On Web, simulate tiny GPS drift over time so that tests/simulations register movement, distance, and speeds
     if (Platform.OS === "web" && startedAtRef.current) {
@@ -310,6 +332,41 @@ const TrackActivityScreen = ({ navigation }) => {
       ...nextPoint,
       timestamp: timestampMs,
     };
+
+    // ── JUMP VECTOR REJECTION ──
+    // If we have a previous valid point, reject impossible teleport jumps
+    const prevValid = lastValidPointRef.current;
+    if (prevValid) {
+      const jumpMeters = getDistanceInMeters(prevValid, pointWithTimestamp);
+      if (jumpMeters > MAX_JUMP_METERS) {
+        // Impossible jump – discard and don't stitch into route
+        return;
+      }
+    }
+
+    // ── RECOVERY GATE ──
+    // After app returns from background, require RECOVERY_FRESH_POINTS_NEEDED
+    // consecutive valid points before stitching back into the route
+    if (isRecoveringRef.current) {
+      const accuracy = Number(nextPoint.accuracy || 9999);
+      if (accuracy <= MIN_REQUIRED_ACCURACY_METERS) {
+        recoveryCounterRef.current += 1;
+      } else {
+        recoveryCounterRef.current = 0; // reset on bad point
+      }
+      if (recoveryCounterRef.current < RECOVERY_FRESH_POINTS_NEEDED) {
+        return; // still recovering, don't stitch yet
+      }
+      // Recovery complete – reset the last valid point to this fresh position
+      // so we don't draw a straight line back to the pre-sleep position
+      isRecoveringRef.current = false;
+      recoveryCounterRef.current = 0;
+      lastValidPointRef.current = pointWithTimestamp;
+      lastObservedPointRef.current = pointWithTimestamp;
+      lastMovementAtMsRef.current = timestampMs;
+      setMessage("");
+      return; // accept the anchor point but don't stitch it yet
+    }
 
     const previousObservedPoint = lastObservedPointRef.current;
     lastObservedPointRef.current = pointWithTimestamp;
@@ -330,7 +387,7 @@ const TrackActivityScreen = ({ navigation }) => {
       if (result.reason === "low_accuracy") {
         setMessage("Tracking works best in open spaces. Try stepping outside.");
       } else if (result.reason === "jitter") {
-        setMessage("We’re not detecting movement. Try moving in a straight path.");
+        setMessage("We're not detecting movement. Try moving in a straight path.");
       } else if (result.reason === "stationary") {
         setMessage("Move a bit faster to start tracking.");
       }
@@ -350,15 +407,32 @@ const TrackActivityScreen = ({ navigation }) => {
       const movedMeters = getDistanceInMeters(lastPoint, pointWithTimestamp);
       
       // Interpolate points for smoother map visualization, but cap it to avoid array bloat
-      const stepCount = Math.min(5, Math.max(1, Math.floor(movedMeters / 10)));
+      const interpCount = Math.min(5, Math.max(1, Math.floor(movedMeters / 10)));
       const generatedPoints = [];
-      for (let i = 1; i <= stepCount; i += 1) {
-        const ratio = i / stepCount;
+      for (let i = 1; i <= interpCount; i += 1) {
+        const ratio = i / interpCount;
         generatedPoints.push(interpolatePoint(lastPoint, pointWithTimestamp, ratio));
       }
 
       const next = [...prev, ...generatedPoints];
       coordinatesRef.current = next;
+
+      // ── THROTTLED CAMERA FOLLOW ──
+      // Only animate camera every CAMERA_UPDATE_INTERVAL_MS to avoid jitter
+      const camNow = Date.now();
+      if (camNow - lastCameraUpdateMsRef.current >= CAMERA_UPDATE_INTERVAL_MS && mapRef.current) {
+        lastCameraUpdateMsRef.current = camNow;
+        mapRef.current.animateToRegion(
+          {
+            latitude: pointWithTimestamp.latitude,
+            longitude: pointWithTimestamp.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          },
+          600 // smooth 600ms animation
+        );
+      }
+
       return next;
     });
   }, [activityType, isPaused, resumeFromAutoPause]);
@@ -723,14 +797,36 @@ const TrackActivityScreen = ({ navigation }) => {
     return () => subscription.remove();
   }, [handleNewLocation]);
 
+  // ── APP STATE RECOVERY ──
+  // When the app comes back from background/lock screen, enter recovery mode
+  // so we don't stitch stale background coordinates into the route
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === "active" &&
+        isTracking &&
+        !isPausedRef.current
+      ) {
+        // App just returned to foreground during an active session
+        isRecoveringRef.current = true;
+        recoveryCounterRef.current = 0;
+        setMessage("Reconnecting...");
+      }
+      appStateRef.current = nextAppState;
+    });
+    return () => subscription.remove();
+  }, [isTracking]);
+
   return (
     <View style={styles.container}>
       {/* Full Screen Map Background */}
       {Platform.OS !== "web" && MapView ? (
         <MapView
+          ref={mapRef}
           style={StyleSheet.absoluteFillObject}
           showsUserLocation
-          followsUserLocation={isTracking && !isPaused}
+          followsUserLocation={false}
           initialRegion={{
             latitude: coordinates[0]?.latitude || 37.7749,
             longitude: coordinates[0]?.longitude || -122.4194,
