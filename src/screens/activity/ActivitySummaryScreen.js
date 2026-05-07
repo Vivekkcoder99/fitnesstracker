@@ -138,11 +138,6 @@ const ActivitySummaryScreen = ({ route, navigation }) => {
       color: theme.colors.text.primary,
     },
     {
-      label: "Steps",
-      value: (activity.stepCount || 0).toLocaleString(),
-      color: theme.colors.text.primary,
-    },
-    {
       label: "Elevation",
       value: activity.elevationGain ? `${Math.round(activity.elevationGain)} m` : "–",
       color: theme.colors.text.primary,

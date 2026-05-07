@@ -187,15 +187,6 @@ const ActivityDetailScreen = ({ route }) => {
             <Text style={styles.detailLabel}>GPS Points</Text>
             <Text style={styles.detailValue}>{activity.pointsCount || 0}</Text>
           </View>
-          {activity.steps ? (
-            <>
-              <View style={styles.detailDivider} />
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Steps</Text>
-                <Text style={styles.detailValue}>{activity.steps}</Text>
-              </View>
-            </>
-          ) : null}
         </View>
       </View>
     </ScrollView>

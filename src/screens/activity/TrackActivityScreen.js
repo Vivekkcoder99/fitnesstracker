@@ -27,15 +27,10 @@ import StatCard from "../../components/StatCard";
 import PrimaryButton from "../../components/PrimaryButton";
 import FloatingActionButton from "../../components/FloatingActionButton";
 
-const STEP_LENGTH_METERS = 0.75;
 const SAVE_TIMEOUT_MS = 12000;
-const MIN_DISTANCE_METERS = 3.0; // Increased to reduce jitter
-const MIN_REQUIRED_ACCURACY_METERS = 100; // Relaxed from 40m for real-world urban GPS performance
-const MAX_STEP_CADENCE_INTERVAL_MS = 2000;
-const MIN_STEP_CADENCE_INTERVAL_MS = 250;
-const AUTO_PAUSE_IDLE_MS = 15000; // Increased from 3s to 15s for better UX
-const STEP_BATCH_SIZE = 25;
-const STEP_BATCH_INTERVAL_MS = 30000;
+const MIN_DISTANCE_METERS = 3.0;
+const MIN_REQUIRED_ACCURACY_METERS = 100;
+const AUTO_PAUSE_IDLE_MS = 15000;
 const PACE_SMOOTHING_WINDOW = 5;
 const WORKOUT_TYPES = [
   { label: "Easy", value: "easy" },
@@ -108,16 +103,6 @@ const round = (value, decimals = 2) => {
   return Math.round(value * factor) / factor;
 };
 
-const getStepLengthByActivityType = (type) => {
-  switch (type) {
-    case "run":
-      return 1.0;
-    case "walk":
-      return STEP_LENGTH_METERS;
-    default:
-      return 0;
-  }
-};
 
 const getSpeedBoundsByActivityType = (type) => {
   switch (type) {
@@ -165,7 +150,7 @@ const TrackActivityScreen = ({ navigation }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [avatarId, setAvatarId] = useState("avatar_1");
   const [activeSeconds, setActiveSeconds] = useState(0);
-  const [totalSteps, setTotalSteps] = useState(0);
+  // totalSteps state removed
   const [smoothedPaceMinPerKm, setSmoothedPaceMinPerKm] = useState(0);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const isProcessingRef = useRef(false);
@@ -181,30 +166,8 @@ const TrackActivityScreen = ({ navigation }) => {
   const pauseReasonRef = useRef(null);
   const autoPauseCountRef = useRef(0);
   const manualPauseCountRef = useRef(0);
-  const stepCountRef = useRef(0);
-  const pendingStepBatchRef = useRef(0);
-  const stepBatchesRef = useRef([]);
-  const lastStepBatchAtMsRef = useRef(0);
   const segmentPacesRef = useRef([]);
-
-  const flushStepBatch = (timestamp, force = false) => {
-    const pending = pendingStepBatchRef.current;
-    if (!pending) return;
-
-    if (!force) {
-      const sinceLast = timestamp - lastStepBatchAtMsRef.current;
-      if (pending < STEP_BATCH_SIZE && sinceLast < STEP_BATCH_INTERVAL_MS) {
-        return;
-      }
-    }
-
-    stepBatchesRef.current.push({
-      atUtc: toUtcIso(timestamp),
-      steps: pending,
-    });
-    pendingStepBatchRef.current = 0;
-    lastStepBatchAtMsRef.current = timestamp;
-  };
+  const mapRef = useRef(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -319,22 +282,7 @@ const TrackActivityScreen = ({ navigation }) => {
       setSmoothedPaceMinPerKm(smoothed[smoothed.length - 1]);
     }
 
-    const stepLength = getStepLengthByActivityType(activityType);
-    if (stepLength > 0) {
-      const estimatedSteps = Math.floor(movedMeters / stepLength);
-      if (estimatedSteps > 0) {
-        const stepIntervalMs = (deltaTimeSeconds * 1000) / estimatedSteps;
-        if (
-          stepIntervalMs >= MIN_STEP_CADENCE_INTERVAL_MS &&
-          stepIntervalMs <= MAX_STEP_CADENCE_INTERVAL_MS
-        ) {
-          stepCountRef.current += estimatedSteps;
-          pendingStepBatchRef.current += estimatedSteps;
-          setTotalSteps(stepCountRef.current);
-          flushStepBatch(timestampMs);
-        }
-      }
-    }
+
 
     lastValidPointRef.current = nextPoint;
     lastMovementAtMsRef.current = timestampMs;
@@ -379,8 +327,17 @@ const TrackActivityScreen = ({ navigation }) => {
     const result = processMovementSample(pointWithTimestamp, timestampMs);
 
     if (!result.accepted) {
+      if (result.reason === "low_accuracy") {
+        setMessage("Tracking works best in open spaces. Try stepping outside.");
+      } else if (result.reason === "jitter") {
+        setMessage("We’re not detecting movement. Try moving in a straight path.");
+      } else if (result.reason === "stationary") {
+        setMessage("Move a bit faster to start tracking.");
+      }
       return;
     }
+
+    setMessage("");
 
     setCoordinates((prev) => {
       if (prev.length === 0) {
@@ -427,7 +384,7 @@ const TrackActivityScreen = ({ navigation }) => {
       }
     } catch (err) {
       console.error("Failed to start location watch:", err);
-      throw new Error("Location services are unavailable. Please check your settings.");
+      throw new Error("Please enable location access in your device settings to start tracking.");
     }
   };
 
@@ -487,8 +444,7 @@ const TrackActivityScreen = ({ navigation }) => {
         resumedAtMsRef.current = null;
       }
 
-      flushStepBatch(endedAt, true);
-
+      // flushStepBatch removed – no step batch processing
       const elapsedTimeSeconds = Math.max(1, elapsedSeconds);
       const activeTimeSeconds = Math.max(1, Math.floor(activeAccumMsRef.current / 1000));
       const pausedTimeSeconds = Math.max(0, elapsedTimeSeconds - activeTimeSeconds);
@@ -521,8 +477,6 @@ const TrackActivityScreen = ({ navigation }) => {
         paceMinPerKm: round(paceMinPerKm, 3),
         smoothedPaceMinPerKm: round(smoothedPaceMinPerKm || paceMinPerKm, 3),
         paceSeriesMinPerKm: segmentPacesRef.current.map((value) => round(value, 3)),
-        stepCount: stepCountRef.current,
-        stepBatches: stepBatchesRef.current,
         pointsCount: cleanedRoute.length,
         route: cleanedRoute,
         pauseSummary: {
@@ -534,7 +488,6 @@ const TrackActivityScreen = ({ navigation }) => {
           activeTimeSeconds,
           elapsedTimeSeconds,
           paceMinPerKm: round(paceMinPerKm, 2),
-          steps: stepCountRef.current,
         },
         workout: {
           type: activityType,
@@ -586,7 +539,6 @@ const TrackActivityScreen = ({ navigation }) => {
         distanceMeters,
         paceMinPerKm,
         smoothedPaceMinPerKm: smoothedPaceMinPerKm || paceMinPerKm,
-        steps: stepCountRef.current,
       });
       setMessage("Activity saved successfully.");
       
@@ -611,67 +563,38 @@ const TrackActivityScreen = ({ navigation }) => {
     }
   };
 
-  const startTracking = async () => {
+  const startTracking = () => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
 
-    try {
-      setError("");
-      setMessage("");
-      setStats(null);
-      setPermissionDenied(false);
+    // Reset all state synchronously
+    setError("");
+    setMessage("Preparing tracking...");
+    setStats(null);
+    setPermissionDenied(false);
+    activeAccumMsRef.current = 0;
+    isPausedRef.current = false;
+    pauseReasonRef.current = null;
+    autoPauseCountRef.current = 0;
+    manualPauseCountRef.current = 0;
+    segmentPacesRef.current = [];
+    lastValidPointRef.current = null;
+    lastObservedPointRef.current = null;
+    lastMovementAtMsRef.current = null;
+    startedAtRef.current = Date.now();
+    resumedAtMsRef.current = Date.now();
+    coordinatesRef.current = [];
+    setCoordinates([]);
+    setActiveSeconds(0);
+    setSmoothedPaceMinPerKm(0);
+    setIsPaused(false);
+    setPauseReason(null);
 
-      const hasPermission = await requestLocationPermission();
-      if (!hasPermission) {
-        setPermissionDenied(true);
-        setError("Location is required to track activity");
-        isProcessingRef.current = false;
-        return;
-      }
-
-      const initialLocation = await getCurrentLocation();
-      const firstCoords = { ...initialLocation.coords };
-      if (firstCoords.accuracy === undefined || firstCoords.accuracy === null) {
-        firstCoords.accuracy = 5;
-      }
-      const firstTimestamp = Number(initialLocation?.timestamp || Date.now());
-      const firstPoint = {
-        ...firstCoords,
-        timestamp: firstTimestamp,
-      };
-
-      setCoordinates([firstPoint]);
-      coordinatesRef.current = [firstPoint];
-      startedAtRef.current = Date.now();
-      resumedAtMsRef.current = Date.now();
-      activeAccumMsRef.current = 0;
-      lastValidPointRef.current = firstPoint;
-      lastObservedPointRef.current = firstPoint;
-      lastMovementAtMsRef.current = firstTimestamp;
-      isPausedRef.current = false;
-      pauseReasonRef.current = null;
-      autoPauseCountRef.current = 0;
-      manualPauseCountRef.current = 0;
-      stepCountRef.current = 0;
-      pendingStepBatchRef.current = 0;
-      stepBatchesRef.current = [];
-      lastStepBatchAtMsRef.current = firstTimestamp;
-      segmentPacesRef.current = [];
-      setActiveSeconds(0);
-      setTotalSteps(0);
-      setSmoothedPaceMinPerKm(0);
-      setIsPaused(false);
-      setPauseReason(null);
-
-      await startLocationWatch();
-      setIsTracking(true);
-    } catch (err) {
-      setError(err.message || "Unable to start activity tracking.");
-      Alert.alert("Tracking Error", err.message || "Unable to start activity tracking.");
-    } finally {
-      isProcessingRef.current = false;
-    }
+    // Show the tracking screen instantly – GPS work happens in the useEffect below
+    setIsTracking(true);
+    isProcessingRef.current = false;
   };
+
 
   const resumeTracking = async () => {
     if (isProcessingRef.current) return;
@@ -717,7 +640,7 @@ const TrackActivityScreen = ({ navigation }) => {
         const idleForMs = now - lastMovementAtMsRef.current;
         if (idleForMs >= AUTO_PAUSE_IDLE_MS) {
           pauseTracking("auto");
-          setMessage("Auto-paused due to inactivity.");
+          setMessage("Paused automatically because no movement was detected.");
         }
       }
     }, 1000);
@@ -737,6 +660,56 @@ const TrackActivityScreen = ({ navigation }) => {
       }
     };
   }, []);
+
+  // Async GPS initialisation – runs AFTER the tracking screen has already rendered
+  useEffect(() => {
+    if (!isTracking) return;
+
+    let cancelled = false;
+    const initGps = async () => {
+      try {
+        const hasPermission = await requestLocationPermission();
+        if (cancelled) return;
+        if (!hasPermission) {
+          setPermissionDenied(true);
+          setError("Location is required to track activity");
+          setIsTracking(false);
+          return;
+        }
+
+        const initialLocation = await getCurrentLocation();
+        if (cancelled) return;
+
+        const firstCoords = { ...initialLocation.coords };
+        if (firstCoords.accuracy === undefined || firstCoords.accuracy === null) {
+          firstCoords.accuracy = 5;
+        }
+        const firstTimestamp = Number(initialLocation?.timestamp || Date.now());
+        const firstPoint = { ...firstCoords, timestamp: firstTimestamp };
+
+        lastValidPointRef.current = firstPoint;
+        lastObservedPointRef.current = firstPoint;
+        lastMovementAtMsRef.current = firstTimestamp;
+        coordinatesRef.current = [firstPoint];
+        setCoordinates([firstPoint]);
+
+        if (!cancelled) {
+          await startLocationWatch();
+          setMessage("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setIsTracking(false);
+          setError(err.message || "Unable to start activity tracking.");
+          Alert.alert("Tracking Error", err.message || "Unable to start activity tracking.");
+        }
+      }
+    };
+
+    initGps();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTracking]);
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(
@@ -946,7 +919,7 @@ const TrackActivityScreen = ({ navigation }) => {
               {/* GPS Readiness */}
               <View style={styles.gpsRow}>
                 <View style={[styles.gpsDot, { backgroundColor: theme.colors.primary }]} />
-                <Text style={styles.gpsText}>GPS Ready</Text>
+                <Text style={styles.gpsText}>Ready to Track</Text>
               </View>
 
               {/* Start Button */}
@@ -982,12 +955,7 @@ const TrackActivityScreen = ({ navigation }) => {
                   unit="/km"
                   highlight
                 />
-                <StatCard
-                  label="Steps"
-                  value={String(totalSteps)}
-                  unit=""
-                />
-              </View>
+            </View>
 
               {/* Live Pace Zone Needle Bar */}
               <View style={styles.pzWrap}>
